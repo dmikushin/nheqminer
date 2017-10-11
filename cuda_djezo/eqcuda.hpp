@@ -4,7 +4,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "device_functions_decls.h"
-#include "../cpu_tromp/blake2/blake2.h"
+#include "blake2/blake2.h"
 #include "cuda_djezo.hpp"
 
 #ifdef WIN32
