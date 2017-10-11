@@ -7,11 +7,10 @@ option(ENABLE_CUDA "Enable the cuda build" ON)
 #set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-std=c++11)
 
 file(GLOB SRC_LIST
-    cuda_djezo.cpp
+    djezo.cu
     equi_miner.cu )
 file(GLOB HEADERS
-    cuda_djezo.hpp
-    eqcuda.hpp
+    djezo.hpp
     )
 
 

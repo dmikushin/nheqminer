@@ -70,7 +70,7 @@ SOFTWARE.
 #include <iostream>
 #include <mutex>
 
-#include "eqcuda.hpp"
+#include "djezo.hpp"
 #include "sm_32_intrinsics.h"
 
 #define WN	200
@@ -1975,9 +1975,9 @@ __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::eq_cuda_context(int id)
 	if (!dev_init_done[device_id])
 	{
 		// only first thread shall init device
-		checkCudaErrors(cudaSetDevice(device_id));
-		checkCudaErrors(cudaDeviceReset());
-		checkCudaErrors(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
+		CUDA_ERR_CHECK(cudaSetDevice(device_id));
+		CUDA_ERR_CHECK(cudaDeviceReset());
+		CUDA_ERR_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
 
 		pctx = nullptr;
 	}
@@ -1986,9 +1986,9 @@ __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::eq_cuda_context(int id)
 		// create new context
 		CUdevice dev;
 
-		checkCudaDriverErrors(cuDeviceGet(&dev, device_id));
-		checkCudaDriverErrors(cuCtxCreate(&pctx, CU_CTX_SCHED_BLOCKING_SYNC, dev));
-		checkCudaDriverErrors(cuCtxPushCurrent(pctx));
+		cuDeviceGet(&dev, device_id);
+		cuCtxCreate(&pctx, CU_CTX_SCHED_BLOCKING_SYNC, dev);
+		cuCtxPushCurrent(pctx);
 	}
 	++dev_init_done[device_id];
 	dev_init.unlock();
@@ -2023,9 +2023,9 @@ __host__ void eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::solve(const char *t
 	//u32 nn = *(u32*)&nonce[28];
 	u32 nn = 0;
 
-	checkCudaErrors(cudaMemcpy(&device_eq->blake_h, &blake_ctx.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
+	CUDA_ERR_CHECK(cudaMemcpy(&device_eq->blake_h, &blake_ctx.h, sizeof(u64) * 8, cudaMemcpyHostToDevice));
 
-	checkCudaErrors(cudaMemset(&device_eq->edata, 0, sizeof(device_eq->edata)));
+	CUDA_ERR_CHECK(cudaMemset(&device_eq->edata, 0, sizeof(device_eq->edata)));
 
 	digit_first<RB, SM, PACKER> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(device_eq, nn);
 
@@ -2049,7 +2049,7 @@ __host__ void eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::solve(const char *t
 
 	digit_last_wdc<RB, SM, SSM - 3, 2, PACKER, 64, 8, 4> << <4096, 256 / 2 >> >(device_eq);
 
-	checkCudaErrors(cudaMemcpy(solutions, &device_eq->edata.srealcont, (MAXREALSOLS * (512 * 4)) + 4, cudaMemcpyDeviceToHost));
+	CUDA_ERR_CHECK(cudaMemcpy(solutions, &device_eq->edata.srealcont, (MAXREALSOLS * (512 * 4)) + 4, cudaMemcpyDeviceToHost));
 
 	//printf("nsols: %u\n", solutions->nsols);
 	//if (solutions->nsols > 9)
@@ -2088,11 +2088,11 @@ __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::~eq_cuda_context()
 	if (pctx)
 	{
 		// non primary thread, destroy context
-		checkCudaDriverErrors(cuCtxDestroy(pctx));
+		cuCtxDestroy(pctx);
 	}
 	else
 	{
-		checkCudaErrors(cudaDeviceReset());
+		CUDA_ERR_CHECK(cudaDeviceReset());
 
 		dev_init_done[device_id] = 0;
 	}

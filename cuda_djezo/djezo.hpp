@@ -1,42 +1,53 @@
-#pragma once
+#ifndef DJEZO_H
+#define DJEZO_H
 
-#include "cuda.h"
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include "device_functions_decls.h"
-#include "blake2/blake2.h"
-#include "cuda_djezo.hpp"
+struct eq_cuda_context_interface;
 
-#ifdef WIN32
-#define _SNPRINTF _snprintf
-#else
+struct cuda_djezo
+{
+	int threadsperblock;
+	int blocks;
+	int device_id;
+	int combo_mode;
+	eq_cuda_context_interface* context;
+
+	cuda_djezo(int platf_id, int dev_id);
+
+	std::string getdevinfo();
+
+	static int getcount();
+
+	static void getinfo(int platf_id, int d_id, std::string& gpu_name, int& sm_count, std::string& version);
+
+	static void start(cuda_djezo& device_context);
+
+	static void stop(cuda_djezo& device_context);
+
+	static void solve(const char *tequihash_header,
+		unsigned int tequihash_header_len,
+		const char* nonce,
+		unsigned int nonce_len,
+		std::function<bool()> cancelf,
+		std::function<void(const std::vector<uint32_t>&, size_t, const unsigned char*)> solutionf,
+		std::function<void(void)> hashdonef,
+		cuda_djezo& device_context);
+
+	std::string getname() { return "CUDA-DJEZO"; }
+
+private:
+	std::string m_gpu_name;
+	std::string m_version;
+	int m_sm_count;
+};
+
+#if defined(__CUDACC__)
+
+#include <cuda.h>
 #include <stdio.h>
 #define _SNPRINTF snprintf
-#endif
 
-#define checkCudaErrors(call)								\
-do {														\
-	cudaError_t err = call;									\
-	if (cudaSuccess != err) {								\
-		char errorBuff[512];								\
-        _SNPRINTF(errorBuff, sizeof(errorBuff) - 1,			\
-			"CUDA error '%s' in func '%s' line %d",			\
-			cudaGetErrorString(err), __FUNCTION__, __LINE__);	\
-		throw std::runtime_error(errorBuff);				\
-		}														\
-} while (0)
-
-#define checkCudaDriverErrors(call)								\
-do {														\
-	CUresult err = call;									\
-	if (CUDA_SUCCESS != err) {								\
-		char errorBuff[512];								\
-		_SNPRINTF(errorBuff, sizeof(errorBuff) - 1,			\
-			"CUDA error DRIVER: '%d' in func '%s' line %d",			\
-			err, __FUNCTION__, __LINE__);	\
-		throw std::runtime_error(errorBuff);				\
-				}														\
-} while (0)
+#include "check.h"
+#include "blake2/blake2.h"
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -97,3 +108,8 @@ struct eq_cuda_context : public eq_cuda_context_interface
 #define CONFIG_MODE_1	9, 1248, 12, 640, packer_cantor
 
 #define CONFIG_MODE_2	8, 640, 12, 512, packer_default
+
+#endif // __CUDACC__
+
+#endif // DJEZO_H
+

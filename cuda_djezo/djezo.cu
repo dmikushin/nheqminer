@@ -4,11 +4,9 @@
 #include <stdint.h>
 #include <string>
 
-#include "cuda_djezo.hpp"
+#include "djezo.hpp"
 
 struct proof;
-#include "eqcuda.hpp"
-
 
 cuda_djezo::cuda_djezo(int platf_id, int dev_id)
 {
@@ -47,18 +45,15 @@ std::string cuda_djezo::getdevinfo()
 int cuda_djezo::getcount()
 {
 	int device_count;
-	checkCudaErrors(cudaGetDeviceCount(&device_count));
+	CUDA_ERR_CHECK(cudaGetDeviceCount(&device_count));
 	return device_count;
 }
 
 void cuda_djezo::getinfo(int platf_id, int d_id, std::string& gpu_name, int& sm_count, std::string& version)
 {
-	//int runtime_version;
-	//checkCudaErrors(cudaRuntimeGetVersion(&runtime_version));
-
 	cudaDeviceProp device_props;
 
-	checkCudaErrors(cudaGetDeviceProperties(&device_props, d_id));
+	CUDA_ERR_CHECK(cudaGetDeviceProperties(&device_props, d_id));
 
 	gpu_name = device_props.name;
 	sm_count = device_props.multiProcessorCount;
@@ -73,11 +68,6 @@ void cuda_djezo::start(cuda_djezo& device_context)
 #ifdef CONFIG_MODE_2
 	case 2:
 		device_context.context = new eq_cuda_context<CONFIG_MODE_2>(device_context.device_id);
-		break;
-#endif
-#ifdef CONFIG_MODE_3
-	case 3:
-		device_context.context = new eq_cuda_context<CONFIG_MODE_3>(device_context.device_id);
 		break;
 #endif
 	default:
@@ -123,6 +113,5 @@ void eq_cuda_context_interface::solve(const char *tequihash_header,
 	std::function<void(void)> hashdonef)
 {
 }
-
 
 eq_cuda_context_interface::~eq_cuda_context_interface() { }
