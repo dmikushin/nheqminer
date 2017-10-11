@@ -59,9 +59,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifdef WIN32
-#include <Windows.h>
-#endif
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -1968,20 +1965,6 @@ __host__ void setheader(blake2b_state *ctx, const char *header, const u32 header
 	blake2b_update(ctx, (const uchar *)nce, nonceLen);
 }
 
-
-#ifdef WIN32
-typedef CUresult(CUDAAPI *dec_cuDeviceGet)(CUdevice*, int);
-typedef CUresult(CUDAAPI *dec_cuCtxCreate)(CUcontext*, unsigned int, CUdevice);
-typedef CUresult(CUDAAPI *dec_cuCtxPushCurrent)(CUcontext);
-typedef CUresult(CUDAAPI *dec_cuCtxDestroy)(CUcontext);
-
-dec_cuDeviceGet _cuDeviceGet = nullptr;
-dec_cuCtxCreate _cuCtxCreate = nullptr;
-dec_cuCtxPushCurrent _cuCtxPushCurrent = nullptr;
-dec_cuCtxDestroy _cuCtxDestroy = nullptr;
-#endif
-
-
 template <u32 RB, u32 SM, u32 SSM, u32 THREADS, typename PACKER>
 __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::eq_cuda_context(int id)
 	: device_id(id)
@@ -2003,35 +1986,9 @@ __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::eq_cuda_context(int id)
 		// create new context
 		CUdevice dev;
 
-#ifdef WIN32
-		if (_cuDeviceGet == nullptr)
-		{
-			HMODULE hmod = LoadLibraryA("nvcuda.dll");
-			if (hmod == NULL)
-				throw std::runtime_error("Failed to load nvcuda.dll");
-			_cuDeviceGet = (dec_cuDeviceGet)GetProcAddress(hmod, "cuDeviceGet");
-			if (_cuDeviceGet == nullptr)
-				throw std::runtime_error("Failed to get cuDeviceGet address");
-			_cuCtxCreate = (dec_cuCtxCreate)GetProcAddress(hmod, "cuCtxCreate_v2");
-			if (_cuCtxCreate == nullptr)
-				throw std::runtime_error("Failed to get cuCtxCreate address");
-			_cuCtxPushCurrent = (dec_cuCtxPushCurrent)GetProcAddress(hmod, "cuCtxPushCurrent_v2");
-			if (_cuCtxPushCurrent == nullptr)
-				throw std::runtime_error("Failed to get cuCtxPushCurrent address");
-			_cuCtxDestroy = (dec_cuCtxDestroy)GetProcAddress(hmod, "cuCtxDestroy_v2");
-			if (_cuCtxDestroy == nullptr)
-				throw std::runtime_error("Failed to get cuCtxDestroy address");
-		}
-
-
-		checkCudaDriverErrors(_cuDeviceGet(&dev, device_id));
-		checkCudaDriverErrors(_cuCtxCreate(&pctx, CU_CTX_SCHED_BLOCKING_SYNC, dev));
-		checkCudaDriverErrors(_cuCtxPushCurrent(pctx));
-#else
 		checkCudaDriverErrors(cuDeviceGet(&dev, device_id));
 		checkCudaDriverErrors(cuCtxCreate(&pctx, CU_CTX_SCHED_BLOCKING_SYNC, dev));
 		checkCudaDriverErrors(cuCtxPushCurrent(pctx));
-#endif
 	}
 	++dev_init_done[device_id];
 	dev_init.unlock();
@@ -2131,11 +2088,7 @@ __host__ eq_cuda_context<RB, SM, SSM, THREADS, PACKER>::~eq_cuda_context()
 	if (pctx)
 	{
 		// non primary thread, destroy context
-#ifdef WIN32
-		checkCudaDriverErrors(_cuCtxDestroy(pctx));
-#else
 		checkCudaDriverErrors(cuCtxDestroy(pctx));
-#endif
 	}
 	else
 	{
