@@ -34,16 +34,11 @@ endif()
 # LINUX
 if(CMAKE_COMPILER_IS_GNUCXX)
 #    # use native cpu features
-#    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -fPIC")
-#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -fPIC")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -fPIC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -fPIC")
 
 #    # optimizations
 #    add_definitions(-O3)
-
-    # use
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64 -msse2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -msse2")
-    # optimizations
     add_definitions(-O2)
 endif()
 
@@ -184,9 +179,9 @@ if (USE_CPU_TROMP)
 endif()
 if (USE_CPU_XENONCAT)
     add_library ( xenoncat_avx1 SHARED IMPORTED GLOBAL )
-    set_target_properties ( xenoncat_avx1 PROPERTIES IMPORTED_LOCATION "../nheqminer/cpu_xenoncat/asm_linux/equihash_avx1.o" )
+    set_target_properties ( xenoncat_avx1 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/cpu_xenoncat/asm_linux/equihash_avx1.o" )
     add_library ( xenoncat_avx2 SHARED IMPORTED GLOBAL )
-    set_target_properties ( xenoncat_avx2 PROPERTIES IMPORTED_LOCATION "../nheqminer/cpu_xenoncat/asm_linux/equihash_avx2.o" )
+    set_target_properties ( xenoncat_avx2 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/cpu_xenoncat/asm_linux/equihash_avx2.o" )
     target_link_libraries(${PROJECT_NAME} cpu_xenoncat xenoncat_avx1 xenoncat_avx2)
 endif()
 if (USE_CUDA_TROMP)
