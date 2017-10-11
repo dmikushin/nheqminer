@@ -5,12 +5,12 @@
 
 
 #ifdef USE_CPU_XENONCAT
-#include "../cpu_xenoncat/cpu_xenoncat.hpp"
+#include "xenoncat/xenoncat.hpp"
 #else
 CREATE_SOLVER_STUB(cpu_xenoncat, "cpu_xenoncat_STUB")
 #endif
 #ifdef USE_CUDA_DJEZO
-#include "../cuda_djezo/djezo.hpp"
+#include "djezo/djezo.hpp"
 #else
 CREATE_SOLVER_STUB(cuda_djezo, "cuda_djezo_STUB")
 #endif

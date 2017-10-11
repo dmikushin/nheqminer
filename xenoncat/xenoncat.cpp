@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #endif
 
-#include "cpu_xenoncat.hpp"
+#include "xenoncat.hpp"
 
 #define CONTEXT_SIZE 178033152
 

@@ -1,4 +1,4 @@
-set(EXECUTABLE cuda_djezo)
+set(NAME djezo)
 
 option(ENABLE_CUDA "Enable the cuda build" ON)
 
@@ -14,7 +14,7 @@ file(GLOB HEADERS
     )
 
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-D_FORCE_INLINES;--disable-warnings;--ptxas-options=-v;-Xptxas=-dlcm=ca;-Xptxas=-dscm=cs; -O3)
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-D_FORCE_INLINES;i--ptxas-options=-v;-Xptxas=-dlcm=ca;-Xptxas=-dscm=cs; -O3)
 
 FIND_PACKAGE(CUDA REQUIRED)
 if(COMPUTE AND (COMPUTE GREATER 0))
@@ -33,10 +33,10 @@ endif()
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories(..)
-CUDA_ADD_LIBRARY(${EXECUTABLE} STATIC ${SRC_LIST} ${HEADERS})
-TARGET_LINK_LIBRARIES(${EXECUTABLE} ${CUDA_LIBRARIES} cuda)
+CUDA_ADD_LIBRARY(${NAME} STATIC ${SRC_LIST} ${HEADERS})
+TARGET_LINK_LIBRARIES(${NAME} ${CUDA_LIBRARIES} cuda)
 
 message("-- CUDA_NVCC_FLAGS: ${CUDA_NVCC_FLAGS}")
 
-install( TARGETS ${EXECUTABLE} RUNTIME DESTINATION bin ARCHIVE DESTINATION lib LIBRARY DESTINATION lib )
-install( FILES ${HEADERS} DESTINATION include/${EXECUTABLE} )
+install( TARGETS ${NAME} RUNTIME DESTINATION bin ARCHIVE DESTINATION lib LIBRARY DESTINATION lib )
+install( FILES ${HEADERS} DESTINATION include/${NAME} )
