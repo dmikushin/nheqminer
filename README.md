@@ -28,7 +28,7 @@ CPU settings
 ```
 	-t [num_thrds]	Number of CPU threads
 	-e [ext]	Force CPU ext (0 = SSE2, 1 = AVX, 2 = AVX2)
-``
+```
 
 NVIDIA CUDA settings
 
