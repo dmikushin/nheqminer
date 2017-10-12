@@ -12,10 +12,11 @@ std::vector<ISolver *> MinerFactory::GenerateSolvers(int cpu_threads, int cuda_c
 	int opencl_count, int opencl_platf, int* opencl_en, int* opencl_t) {
 	std::vector<ISolver *> solversPointers;
 
+#ifdef USE_CUDA_DJEZO
 	for (int i = 0; i < cuda_count; ++i) {
-		solversPointers.push_back(GenCUDASolver(cuda_en[i], cuda_b[i], cuda_t[i]));
+		solversPointers.push_back(djezoSolver(cuda_en[i], opencl_platf));
 	}
-
+#endif
 	for (int i = 0; i < cpu_threads; ++i)
 	{
 		solversPointers.push_back(GenCPUSolver(use_avx2));
@@ -35,11 +36,6 @@ void MinerFactory::ClearAllSolvers() {
 
 ISolver * MinerFactory::GenCPUSolver(int use_opt) {
 	_solvers.push_back(new CPUSolverXenoncat(use_opt));
-	return _solvers.back();
-}
-
-ISolver * MinerFactory::GenCUDASolver(int dev_id, int blocks, int threadsperblock) {
-	_solvers.push_back(new CUDASolverDjezo(dev_id, blocks, threadsperblock));
 	return _solvers.back();
 }
 

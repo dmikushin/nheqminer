@@ -1,34 +1,13 @@
 set(NAME djezo)
 
-option(ENABLE_CUDA "Enable the cuda build" ON)
-
-# depending on gcc version
-# ;-std=c++11 => Ubuntu 14.04 check gcc versions
-#set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-std=c++11)
-
-file(GLOB SRC_LIST
-    djezo.cu
-    equi_miner.cu )
-file(GLOB HEADERS
-    djezo.hpp
-    )
-
+file(GLOB SRC_LIST djezo.cu)
+file(GLOB HEADERS djezo.hpp)
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-D_FORCE_INLINES;i--ptxas-options=-v;-Xptxas=-dlcm=ca;-Xptxas=-dscm=cs; -O3)
 
 FIND_PACKAGE(CUDA REQUIRED)
-if(COMPUTE AND (COMPUTE GREATER 0))
-        LIST(APPEND CUDA_NVCC_FLAGS -gencode arch=compute_${COMPUTE},code=sm_${COMPUTE})
-else(COMPUTE AND (COMPUTE GREATER 0))
-        set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61)
-endif(COMPUTE AND (COMPUTE GREATER 0))
 
-if(CUDA_FOUND)
-message("CUDA FOUND")
-else()
-message("CUDA NOT FOUND")
-endif()
-
+set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${CUDA_INCLUDE_DIRS})

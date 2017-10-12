@@ -9,11 +9,6 @@
 
 #include "libstratum/StratumClient.h"
 
-#if defined(USE_OCL_XMP) || defined(USE_OCL_SILENTARMY)
-#include "../ocl_device_utils/ocl_device_utils.h"
-#define PRINT_OCL_INFO
-#endif
-
 #include <thread>
 #include <chrono>
 #include <atomic>
@@ -88,7 +83,6 @@ void print_help()
 	std::cout << "\t-e [ext]\tForce CPU ext (0 = SSE2, 1 = AVX, 2 = AVX2)" << std::endl;
 	std::cout << std::endl;
 	std::cout << "NVIDIA CUDA settings" << std::endl;
-	std::cout << "\t-ci\t\tCUDA info" << std::endl;
 	std::cout << "\t-cv [ver]\tSet CUDA solver (0 = djeZo, 1 = tromp)" << std::endl;
 	std::cout << "\t-cd [devices]\tEnable CUDA mining on spec. devices" << std::endl;
 	std::cout << "\t-cb [blocks]\tNumber of blocks" << std::endl;
@@ -105,38 +99,6 @@ void print_help()
 	////std::cout << "\t-ct [tpb]\tNumber of threads per block" << std::endl;
 	//std::cout << "Example: -op 2 -od 0 2" << std::endl; //-cb 12 16 -ct 64 128" << std::endl;
 	std::cout << std::endl;
-}
-
-
-void print_cuda_info()
-{
-#if defined(USE_CUDA_DJEZO) || defined(USE_CUDA_TROMP)
-#ifdef USE_CUDA_DJEZO
-    int num_devices = cuda_djezo::getcount();
-#elif USE_CUDA_TROMP
-    int num_devices = cuda_tromp::getcount();
-#endif
-
-	std::cout << "Number of CUDA devices found: " << num_devices << std::endl;
-
-	for (int i = 0; i < num_devices; ++i)
-	{
-		std::string gpuname, version;
-		int smcount;
-#ifdef USE_CUDA_DJEZO
-        cuda_djezo::getinfo(0, i, gpuname, smcount, version);
-#elif USE_CUDA_TROMP
-        cuda_tromp::getinfo(0, i, gpuname, smcount, version);
-#endif
-		std::cout << "\t#" << i << " " << gpuname << " | SM version: " << version << " | SM count: " << smcount << std::endl;
-	}
-#endif
-}
-
-void print_opencl_info() {
-#ifdef PRINT_OCL_INFO
-	ocl_device_utils::print_opencl_devices();
-#endif
 }
 
 #define MAX_INSTANCES 8 * 2
@@ -237,10 +199,6 @@ void start_mining(int api_port, const std::string& host, const std::string& port
 
 int main(int argc, char* argv[])
 {
-#if defined(WIN32) && defined(NDEBUG)
-	system(""); // windows 10 colored console
-#endif
-
 	std::cout << std::endl;
 	std::cout << "\t==================== www.nicehash.com ====================" << std::endl;
 	std::cout << "\t\tEquihash CPU&GPU Miner for NiceHash v" STANDALONE_MINER_VERSION << std::endl;
@@ -276,9 +234,6 @@ int main(int argc, char* argv[])
 		{
 			switch (argv[i][2])
 			{
-			case 'i':
-				print_cuda_info();
-				return 0;
 			case 'v':
 				use_old_cuda = atoi(argv[++i]);
 				break;
@@ -330,53 +285,6 @@ int main(int argc, char* argv[])
 			}
 			break;
 		}
-		//case 'o':
-		//{
-		//	switch (argv[i][2])
-		//	{
-		//	case 'i':
-		//		print_opencl_info();
-		//		return 0;
-		//	case 'v':
-		//		use_old_xmp = atoi(argv[++i]);
-		//		break;
-		//	case 'p':
-		//		opencl_platform = std::stol(argv[++i]);
-		//		break;
-		//	case 'd':
-		//		while (opencl_device_count < 8 && i + 1 < argc)
-		//		{
-		//			try
-		//			{
-		//				opencl_enabled[opencl_device_count] = std::stol(argv[++i]);
-		//				++opencl_device_count;
-		//			}
-		//			catch (...)
-		//			{
-		//				--i;
-		//				break;
-		//			}
-		//		}
-		//		break;
-		//	case 't':
-		//		while (opencl_t < 8 && i + 1 < argc)
-		//		{
-		//			try
-		//			{
-		//				opencl_threads[opencl_t] = std::stol(argv[++i]);
-		//				++opencl_t;
-		//			}
-		//			catch (...)
-		//			{
-		//				--i;
-		//				break;
-		//			}
-		//		}
-		//		break;
-		//		// TODO extra parameters for OpenCL
-		//	}
-		//	break;
-		//}
 		case 'l':
 			location = argv[++i];
 			break;
