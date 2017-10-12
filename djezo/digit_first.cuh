@@ -53,8 +53,8 @@ __device__ __forceinline__ void G2(uint64_t & a, uint64_t & b, uint64_t & c, uin
 
 } // namespace digit_first
 
-template <uint32_t RB, uint32_t SM, typename PACKER>
-__global__ void DigitFirst(Equi<RB, SM>* eq, uint32_t nonce)
+template <uint32_t RB, uint32_t SM>
+__global__ void DigitFirst(Equi<RB, SM>* eq)
 {
 	using namespace digit_first;
 
@@ -67,7 +67,7 @@ __global__ void DigitFirst(Equi<RB, SM>* eq, uint32_t nonce)
 
 	__syncthreads();
 
-	uint64_t m = (uint64_t)block << 32 | (uint64_t)nonce;
+	uint64_t m = (uint64_t)block << 32;
 
 	union
 	{

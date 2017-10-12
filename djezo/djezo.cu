@@ -1742,19 +1742,11 @@ public:
 
 		setheader(&blake_ctx, tequihash_header, tequihash_header_len, nonce, nonce_len);
 
-		// todo: improve
-		// djezo solver allows last 4 bytes of nonce to be iterrated
-		// this can be used to create internal loop - calc initial blake hash only once, then load 8*8 bytes on device (blake state h)
-		// then just iterate nn++
-		// less CPU load, 1 cudaMemcpy less -> faster
-		//uint32_t nn = *(uint32_t*)&nonce[28];
-		uint32_t nn = 0;
-
 		CUDA_ERR_CHECK(cudaMemcpy(&equi->blake_h, &blake_ctx.h, sizeof(uint64_t) * 8, cudaMemcpyHostToDevice));
 
 		CUDA_ERR_CHECK(cudaMemset(&equi->edata, 0, sizeof(equi->edata)));
 
-		DigitFirst<RB, SM, PACKER> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi, nn);
+		DigitFirst<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi);
 
 		digit_1<RB, SM, SSM, PACKER, 4 * NRESTS, 512> << <4096, 512 >> >(equi);
 
