@@ -1,12 +1,13 @@
 namespace digit_first {
 
-__device__ __constant__ const uint64_t blake_iv[] =
-{
-	0x6a09e667f3bcc908, 0xbb67ae8584caa73b,
-	0x3c6ef372fe94f82b, 0xa54ff53a5f1d36f1,
-	0x510e527fade682d1, 0x9b05688c2b3e6c1f,
-	0x1f83d9abfb41bd6b, 0x5be0cd19137e2179,
-};
+#define BLAKE_IV0 0x6a09e667f3bcc908
+#define BLAKE_IV1 0xbb67ae8584caa73b
+#define BLAKE_IV2 0x3c6ef372fe94f82b
+#define BLAKE_IV3 0xa54ff53a5f1d36f1
+#define BLAKE_IV4 0x510e527fade68241 // 0x510e527fade682d1 ^ (128 + 16)
+#define BLAKE_IV5 0x9b05688c2b3e6c1f
+#define BLAKE_IV6 0xe07c265404be4294 // 0x1f83d9abfb41bd6b ^ 0xffffffffffffffff
+#define BLAKE_IV7 0x5be0cd19137e2179
 
 __device__ __forceinline__ uint2 ROR2(const uint2 a, const int offset) 
 {
@@ -84,14 +85,14 @@ __global__ void DigitFirst(Equi<RB, SM>* eq)
 	v[5] = hash_h[5];
 	v[6] = hash_h[6];
 	v[7] = hash_h[7];
-	v[8] = blake_iv[0];
-	v[9] = blake_iv[1];
-	v[10] = blake_iv[2];
-	v[11] = blake_iv[3];
-	v[12] = blake_iv[4] ^ (128 + 16);
-	v[13] = blake_iv[5];
-	v[14] = blake_iv[6] ^ 0xffffffffffffffff;
-	v[15] = blake_iv[7];
+	v[8] = BLAKE_IV0;
+	v[9] = BLAKE_IV1;
+	v[10] = BLAKE_IV2;
+	v[11] = BLAKE_IV3;
+	v[12] = BLAKE_IV4;
+	v[13] = BLAKE_IV5;
+	v[14] = BLAKE_IV6;
+	v[15] = BLAKE_IV7;
 
 	// mix 1
 	G2(v[0], v[4], v[8], v[12], 0, m);
