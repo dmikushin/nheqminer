@@ -1,7 +1,7 @@
 set(NAME djezo)
 
 file(GLOB SRC_LIST djezo.cu)
-file(GLOB HEADERS djezo.hpp)
+file(GLOB HEADERS djezo.hpp digit_first.cuh)
 
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-D_FORCE_INLINES;i--ptxas-options=-v;-Xptxas=-dlcm=ca;-Xptxas=-dscm=cs; -O3)
 
