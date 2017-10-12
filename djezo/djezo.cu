@@ -1736,17 +1736,11 @@ public:
 		std::function<void(const std::vector<uint32_t>&, size_t, const unsigned char*)> solutionf,
 		std::function<void(void)> hashdonef)
 	{
-		blake2b_state blake_ctx;
-
 		int blocks = NBUCKETS;
-
-		setheader(&blake_ctx, tequihash_header, tequihash_header_len, nonce, nonce_len);
-
-		CUDA_ERR_CHECK(cudaMemcpy(&equi->blake_h, &blake_ctx.h, sizeof(uint64_t) * 8, cudaMemcpyHostToDevice));
 
 		CUDA_ERR_CHECK(cudaMemset(&equi->edata, 0, sizeof(equi->edata)));
 
-		DigitFirst<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi);
+		DigitFirst<RB, SM>(equi, tequihash_header, tequihash_header_len, nonce, nonce_len);
 
 		digit_1<RB, SM, SSM, PACKER, 4 * NRESTS, 512> << <4096, 512 >> >(equi);
 

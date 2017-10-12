@@ -40,7 +40,7 @@ __device__ __forceinline__ uint2 ROR16(const uint2 a)
 	return result;
 }
 
-__device__ __forceinline__ void G2(uint64_t & a, uint64_t & b, uint64_t & c, uint64_t & d, uint64_t x, uint64_t y) 
+__device__ __forceinline__ void G2(uint64_t& a, uint64_t& b, uint64_t& c, uint64_t& d, const uint64_t& x, const uint64_t& y) 
 {
 	a = a + b + x;
 	((uint2*)&d)[0] = SWAPUINT2(((uint2*)&d)[0] ^ ((uint2*)&a)[0]);
@@ -52,10 +52,8 @@ __device__ __forceinline__ void G2(uint64_t & a, uint64_t & b, uint64_t & c, uin
 	((uint2*)&b)[0] = ROR2(((uint2*)&b)[0] ^ ((uint2*)&c)[0], 63U);
 }
 
-} // namespace digit_first
-
 template <uint32_t RB, uint32_t SM>
-__global__ void DigitFirst(Equi<RB, SM>* eq)
+__global__ void kernelDigitFirst(Equi<RB, SM>* eq)
 {
 	using namespace digit_first;
 
@@ -264,5 +262,46 @@ __global__ void DigitFirst(Equi<RB, SM>* eq)
 		tt.w = (block << 1) + 1;
 		*(uint4*)(&s->hash[4]) = tt;
 	}
+}
+
+static void setheader(blake2b_state *ctx, const char *header, const uint32_t headerLen, const char* nce, const uint32_t nonceLen)
+{
+	uint32_t le_N = WN;
+	uint32_t le_K = WK;
+	uint8_t personal[] = "ZcashPoW01230123";
+	memcpy(personal + 8, &le_N, 4);
+	memcpy(personal + 12, &le_K, 4);
+	blake2b_param P[1];
+	P->digest_length = HASHOUT;
+	P->key_length = 0;
+	P->fanout = 1;
+	P->depth = 1;
+	P->leaf_length = 0;
+	P->node_offset = 0;
+	P->node_depth = 0;
+	P->inner_length = 0;
+	memset(P->reserved, 0, sizeof(P->reserved));
+	memset(P->salt, 0, sizeof(P->salt));
+	memcpy(P->personal, (const uint8_t *)personal, 16);
+	blake2b_init_param(ctx, P);
+	blake2b_update(ctx, (const uint8_t *)header, headerLen);
+	blake2b_update(ctx, (const uint8_t *)nce, nonceLen);
+}
+
+} // namespace digit_first
+
+template <uint32_t RB, uint32_t SM>
+__forceinline__ void DigitFirst(Equi<RB, SM>* equi,
+	const char *tequihash_header, unsigned int tequihash_header_len,
+	const char* nonce, unsigned int nonce_len)
+{
+	using namespace digit_first;
+
+	blake2b_state blake_ctx;
+	setheader(&blake_ctx, tequihash_header, tequihash_header_len, nonce, nonce_len);
+
+	CUDA_ERR_CHECK(cudaMemcpy(&equi->blake_h, &blake_ctx.h, sizeof(uint64_t) * 8, cudaMemcpyHostToDevice));
+
+	kernelDigitFirst<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi);
 }
 
