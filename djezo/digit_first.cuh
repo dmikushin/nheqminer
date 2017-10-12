@@ -52,8 +52,17 @@ __device__ __forceinline__ void G2(uint64_t& a, uint64_t& b, uint64_t& c, uint64
 	((uint2*)&b)[0] = ROR2(((uint2*)&b)[0] ^ ((uint2*)&c)[0], 63U);
 }
 
+typedef union
+{
+	uint64_t v[16];
+	uint32_t v32[32];
+	uint4 v128[8];
+	blake2b_state blake_ctx;
+}
+DigitFirstState;
+
 template <uint32_t RB, uint32_t SM>
-__global__ void kernelDigitFirst(Equi<RB, SM>* eq)
+__global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state)
 {
 	using namespace digit_first;
 
@@ -62,7 +71,7 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* eq)
 	uint32_t* hash_h32 = (uint32_t*)hash_h;
 
 	if (threadIdx.x < 16)
-		hash_h32[threadIdx.x] = __ldca(&eq->blake_h32[threadIdx.x]);
+		hash_h32[threadIdx.x] = state.v32[threadIdx.x];
 
 	__syncthreads();
 
@@ -223,10 +232,10 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* eq)
 	uint32_t bexor = __byte_perm(v32[0], 0, 0x4012); // first 20 bits
 	uint32_t bucketid;
 	asm("bfe.u32 %0, %1, 12, 12;" : "=r"(bucketid) : "r"(bexor));
-	uint32_t slotp = atomicAdd(&eq->edata.nslots0[bucketid], 1);
+	uint32_t slotp = atomicAdd(&equi->edata.nslots0[bucketid], 1);
 	if (slotp < RB8_NSLOTS)
 	{
-		Slot* s = &eq->round0trees[bucketid][slotp];
+		Slot* s = &equi->round0trees[bucketid][slotp];
 
 		uint4 tt;
 		tt.x = __byte_perm(v32[0], v32[1], 0x1234);
@@ -244,10 +253,10 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* eq)
 
 	bexor = __byte_perm(v32[6], 0, 0x0123);
 	asm("bfe.u32 %0, %1, 12, 12;" : "=r"(bucketid) : "r"(bexor));
-	slotp = atomicAdd(&eq->edata.nslots0[bucketid], 1);
+	slotp = atomicAdd(&equi->edata.nslots0[bucketid], 1);
 	if (slotp < RB8_NSLOTS)
 	{
-		Slot* s = &eq->round0trees[bucketid][slotp];
+		Slot* s = &equi->round0trees[bucketid][slotp];
 
 		uint4 tt;
 		tt.x = __byte_perm(v32[6], v32[7], 0x2345);
@@ -297,11 +306,17 @@ __forceinline__ void DigitFirst(Equi<RB, SM>* equi,
 {
 	using namespace digit_first;
 
-	blake2b_state blake_ctx;
-	setheader(&blake_ctx, tequihash_header, tequihash_header_len, nonce, nonce_len);
+	DigitFirstState state;
+	setheader(&state.blake_ctx, tequihash_header, tequihash_header_len, nonce, nonce_len);
+	state.v[8] = BLAKE_IV0;
+	state.v[9] = BLAKE_IV1;
+	state.v[10] = BLAKE_IV2;
+	state.v[11] = BLAKE_IV3;
+	state.v[12] = BLAKE_IV4;
+	state.v[13] = BLAKE_IV5;
+	state.v[14] = BLAKE_IV6;
+	state.v[15] = BLAKE_IV7;
 
-	CUDA_ERR_CHECK(cudaMemcpy(&equi->blake_h, &blake_ctx.h, sizeof(uint64_t) * 8, cudaMemcpyHostToDevice));
-
-	kernelDigitFirst<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi);
+	kernelDigitFirst<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi, state);
 }
 

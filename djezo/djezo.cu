@@ -142,12 +142,6 @@ struct Equi
 	SlotTiny treestiny[1][4096][RB8_NSLOTS_LD];
 	uint32_t round4bidandsids[NBUCKETS][NSLOTS];
 
-	union
-	{
-		uint64_t blake_h[8];
-		uint32_t blake_h32[16];
-	};
-
 	struct
 	{
 		uint32_t nslots8[4096];
