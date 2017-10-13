@@ -1,8 +1,14 @@
 set(NAME xenoncat)
 
-#cpu_xenoncat/
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+enable_language(ASM_FASM)
+
 file(GLOB SRC_LIST
-    xenoncat.cpp )
+    xenoncat.cpp
+    asm/equihash_avx1.asm
+    asm/equihash_avx2.asm
+    )
 file(GLOB HEADERS
     xenoncat.hpp
     )

@@ -138,11 +138,7 @@ target_link_libraries(${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT} ${LIBS} )
 
 # link libs
 if (USE_CPU_XENONCAT)
-    add_library ( xenoncat_avx1 SHARED IMPORTED GLOBAL )
-    set_target_properties ( xenoncat_avx1 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/xenoncat/asm/equihash_avx1.o" )
-    add_library ( xenoncat_avx2 SHARED IMPORTED GLOBAL )
-    set_target_properties ( xenoncat_avx2 PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/xenoncat/asm/equihash_avx2.o" )
-    target_link_libraries(${PROJECT_NAME} xenoncat xenoncat_avx1 xenoncat_avx2)
+    target_link_libraries(${PROJECT_NAME} xenoncat)
 endif()
 if (USE_CUDA_DJEZO)
     target_link_libraries(${PROJECT_NAME} djezo)
