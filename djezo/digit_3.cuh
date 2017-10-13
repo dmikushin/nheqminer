@@ -1,9 +1,9 @@
 template <uint32_t RB, uint32_t SM, int SSM, typename PACKER, uint32_t MAXPAIRS, uint32_t THREADS>
 __global__ void digit_3(Equi<RB, SM>* eq)
 {
-	__shared__ uint16_t ht[NRESTS][(SSM - 1)];
-	__shared__ uint4 lastword1[NSLOTS];
-	__shared__ uint32_t lastword2[NSLOTS];
+	__shared__ uint16_t ht[NRESTS][SSM - 1];
+	__shared__ uint32_t lastword1[NSLOTS];
+	__shared__ uint4 lastword2[NSLOTS];
 	__shared__ int ht_len[NRESTS];
 	__shared__ int pairs[MAXPAIRS];
 	__shared__ uint32_t pairs_len;
@@ -44,9 +44,9 @@ __global__ void digit_3(Equi<RB, SM>* eq)
 		SlotTiny &xst = eq->round2trees[bucketid].treestiny[si[i]];
 
 		tt[i] = *(uint4*)(&xs.hash[0]);
-		lastword1[si[i]] = tt[i];
+		lastword2[si[i]] = tt[i];
 		ta[i] = xst.hash[0];
-		lastword2[si[i]] = ta[i];
+		lastword1[si[i]] = ta[i];
 		asm("bfe.u32 %0, %1, 12, %2;" : "=r"(hr[i]) : "r"(tt[i].x), "r"(RB));
 		pos[i] = atomicAdd(&ht_len[hr[i]], 1);
 		if (pos[i] < (SSM - 1)) ht[hr[i]][pos[i]] = si[i];
@@ -66,11 +66,11 @@ __global__ void digit_3(Equi<RB, SM>* eq)
 		{
 			uint16_t p = ht[hr[i]][0];
 
-			xors[4] = ta[i] ^ lastword2[p];
+			xors[4] = ta[i] ^ lastword1[p];
 
 			if (xors[4] != 0)
 			{
-				*(uint4*)(&xors[0]) = tt[i] ^ lastword1[p];
+				*(uint4*)(&xors[0]) = tt[i] ^ lastword2[p];
 
 				bexor = __byte_perm(xors[0], xors[1], 0x2107);
 				asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(bexor), "r"(RB), "r"(BUCKBITS));
@@ -110,11 +110,11 @@ __global__ void digit_3(Equi<RB, SM>* eq)
 		i = __byte_perm(pair, 0, 0x4510);
 		k = __byte_perm(pair, 0, 0x4532);
 
-		xors[4] = lastword2[i] ^ lastword2[k];
+		xors[4] = lastword1[i] ^ lastword1[k];
 
 		if (xors[4] != 0)
 		{
-			*(uint4*)(&xors[0]) = lastword1[i] ^ lastword1[k];
+			*(uint4*)(&xors[0]) = lastword2[i] ^ lastword2[k];
 
 			bexor = __byte_perm(xors[0], xors[1], 0x2107);
 			asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(bexor), "r"(RB), "r"(BUCKBITS));
