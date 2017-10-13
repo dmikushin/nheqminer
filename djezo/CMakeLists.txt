@@ -1,7 +1,7 @@
 set(NAME djezo)
 
 file(GLOB SRC_LIST djezo.cu)
-file(GLOB HEADERS djezo.hpp digit_first.cuh)
+file(GLOB HEADERS djezo.hpp digit_first.cuh digit_1.cuh digit_2.cuh digit_3.cuh digit_4.cuh digit_5.cuh digit_6.cuh digit_7.cuh digit_8.cuh digit_last_wdc.cuh)
 
 FIND_PACKAGE(CUDA REQUIRED)
 
