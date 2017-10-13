@@ -43,13 +43,13 @@ __device__ __forceinline__ uint2 ROR16(const uint2 a)
 __device__ __forceinline__ void G2(uint64_t& a, uint64_t& b, uint64_t& c, uint64_t& d, const uint64_t& x, const uint64_t& y) 
 {
 	a = a + b + x;
-	((uint2*)&d)[0] = SWAPUINT2(((uint2*)&d)[0] ^ ((uint2*)&a)[0]);
+	*(uint2*)&d = SWAPUINT2(*(uint2*)&d ^ *(uint2*)&a);
 	c = c + d;
-	((uint2*)&b)[0] = ROR24(((uint2*)&b)[0] ^ ((uint2*)&c)[0]);
+	*(uint2*)&b = ROR24(*(uint2*)&b ^ *(uint2*)&c);
 	a = a + b + y;
-	((uint2*)&d)[0] = ROR16(((uint2*)&d)[0] ^ ((uint2*)&a)[0]);
+	*(uint2*)&d = ROR16(*(uint2*)&d ^ *(uint2*)&a);
 	c = c + d;
-	((uint2*)&b)[0] = ROR2(((uint2*)&b)[0] ^ ((uint2*)&c)[0], 63U);
+	*(uint2*)&b = ROR2(*(uint2*)&b ^ *(uint2*)&c, 63U);
 }
 
 typedef union
@@ -67,13 +67,6 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state
 	using namespace digit_first;
 
 	const uint32_t block = blockIdx.x * blockDim.x + threadIdx.x;
-	__shared__ uint64_t hash_h[8];
-	uint32_t* hash_h32 = (uint32_t*)hash_h;
-
-	if (threadIdx.x < 16)
-		hash_h32[threadIdx.x] = state.v32[threadIdx.x];
-
-	__syncthreads();
 
 	uint64_t m = (uint64_t)block << 32;
 
@@ -84,22 +77,14 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state
 		uint4 v128[8];
 	};
 
-	v[0] = hash_h[0];
-	v[1] = hash_h[1];
-	v[2] = hash_h[2];
-	v[3] = hash_h[3];
-	v[4] = hash_h[4];
-	v[5] = hash_h[5];
-	v[6] = hash_h[6];
-	v[7] = hash_h[7];
-	v[8] = BLAKE_IV0;
-	v[9] = BLAKE_IV1;
-	v[10] = BLAKE_IV2;
-	v[11] = BLAKE_IV3;
-	v[12] = BLAKE_IV4;
-	v[13] = BLAKE_IV5;
-	v[14] = BLAKE_IV6;
-	v[15] = BLAKE_IV7;
+	v128[0] = state.v128[0];
+	v128[1] = state.v128[1];
+	v128[2] = state.v128[2];
+	v128[3] = state.v128[3];
+	v128[4] = state.v128[4];
+	v128[5] = state.v128[5];
+	v128[6] = state.v128[6];
+	v128[7] = state.v128[7];
 
 	// mix 1
 	G2(v[0], v[4], v[8], v[12], 0, m);
@@ -221,13 +206,13 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state
 	G2(v[2], v[7], v[8], v[13], 0, 0);
 	G2(v[3], v[4], v[9], v[14], 0, 0);
 
-	v[0] ^= hash_h[0] ^ v[8];
-	v[1] ^= hash_h[1] ^ v[9];
-	v[2] ^= hash_h[2] ^ v[10];
-	v[3] ^= hash_h[3] ^ v[11];
-	v[4] ^= hash_h[4] ^ v[12];
-	v[5] ^= hash_h[5] ^ v[13];
-	v32[12] ^= hash_h32[12] ^ v32[28];
+	v[0] ^= state.v[0] ^ v[8];
+	v[1] ^= state.v[1] ^ v[9];
+	v[2] ^= state.v[2] ^ v[10];
+	v[3] ^= state.v[3] ^ v[11];
+	v[4] ^= state.v[4] ^ v[12];
+	v[5] ^= state.v[5] ^ v[13];
+	v32[12] ^= state.v32[12] ^ v32[28];
 
 	uint32_t bexor = __byte_perm(v32[0], 0, 0x4012); // first 20 bits
 	uint32_t bucketid;
