@@ -7,7 +7,6 @@ __global__ void digit_6(Equi<RB, SM>* eq)
 	__shared__ int ht_len[MAXPAIRS];
 	__shared__ uint32_t pairs_len;
 	__shared__ uint32_t bsize_sh;
-	__shared__ uint32_t next_pair;
 
 	const uint32_t threadid = threadIdx.x;
 	const uint32_t bucketid = blockIdx.x;
@@ -15,10 +14,7 @@ __global__ void digit_6(Equi<RB, SM>* eq)
 	// reset hashtable len
 	ht_len[threadid] = 0;
 	if (threadid == (NRESTS - 1))
-	{
 		pairs_len = 0;
-		next_pair = 0;
-	}
 	else if (threadid == (NRESTS - 33))
 		bsize_sh = umin(eq->edata.nslots[5][bucketid], NSLOTS);
 
@@ -127,8 +123,7 @@ __global__ void digit_6(Equi<RB, SM>* eq)
 	__syncthreads();
 
 	// process pairs
-	uint32_t plen = umin(pairs_len, MAXPAIRS);
-	for (uint32_t s = atomicAdd(&next_pair, 1); s < plen; s = atomicAdd(&next_pair, 1))
+	for (uint32_t s = threadIdx.x, plen = umin(pairs_len, MAXPAIRS); s < plen; s += blockDim.x)
 	{
 		uint32_t pair = pairs[s];
 		uint32_t i = __byte_perm(pair, 0, 0x4510);

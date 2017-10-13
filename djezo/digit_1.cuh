@@ -17,7 +17,6 @@ __global__ void digit_1(Equi<RB, SM>* eq)
 	__shared__ uint4 lastword2[RB8_NSLOTS];
 	__shared__ int ht_len[MAXPAIRS];
 	__shared__ uint32_t pairs_len;
-	__shared__ uint32_t next_pair;
 
 	const uint32_t threadid = threadIdx.x;
 	const uint32_t bucketid = blockIdx.x;
@@ -27,8 +26,6 @@ __global__ void digit_1(Equi<RB, SM>* eq)
 		ht_len[threadid] = 0;
 	else if (threadid == (THREADS - 1))
 		pairs_len = 0;
-	else if (threadid == (THREADS - 33))
-		next_pair = 0;
 
 	uint32_t bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS);
 
@@ -117,14 +114,11 @@ __global__ void digit_1(Equi<RB, SM>* eq)
 	__syncthreads();
 
 	// process pairs
-	uint32_t plen = umin(pairs_len, MAXPAIRS);
-
-	uint32_t i, k;
-	for (uint32_t s = atomicAdd(&next_pair, 1); s < plen; s = atomicAdd(&next_pair, 1))
+	for (uint32_t s = threadIdx.x, plen = umin(pairs_len, MAXPAIRS); s < plen; s += blockDim.x)
 	{
 		int pair = pairs[s];
-		i = __byte_perm(pair, 0, 0x4510);
-		k = __byte_perm(pair, 0, 0x4532);
+		uint32_t i = __byte_perm(pair, 0, 0x4510);
+		uint32_t k = __byte_perm(pair, 0, 0x4532);
 
 		*(uint2*)(&xors[0]) = lastword1[i] ^ lastword1[k];
 
