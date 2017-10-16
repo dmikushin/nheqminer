@@ -1,3 +1,5 @@
+#include <cuda.h> // CUDA_VERSION
+
 /*
   Last round function is similar to previous ones but has different ending.
   We use warps to process final candidates. Each warp process one candidate.
@@ -145,8 +147,13 @@ __global__ void digit_last_wdc(Equi<RB, SM>* eq)
 		susp[lane] = 0xffffffff;
 		susp[32 + lane] = 0xffffffff;
 
+#if CUDA_VERSION >= 9000
+#define CHECK_DUP(a) \
+	__any_sync(0xffffffff, atomicExch(&susp[(ind[a] & ((1 << DUPBITS) - 1))], (ind[a] >> DUPBITS)) == (ind[a] >> DUPBITS))
+#else
 #define CHECK_DUP(a) \
 	__any(atomicExch(&susp[(ind[a] & ((1 << DUPBITS) - 1))], (ind[a] >> DUPBITS)) == (ind[a] >> DUPBITS))
+#endif
 
 		uint32_t f2 = buck_v4[slot1_v4].hash[1];
 		const SlotTiny* buck_v3_1 = &eq->round2trees[PACKER::get_bucketid(f2, RB, SM)].treestiny[0];
@@ -272,7 +279,11 @@ __global__ void digit_last_wdc(Equi<RB, SM>* eq)
 		{
 			soli = atomicAdd(&eq->edata.solutions.nsols, 1);
 		}
+#if CUDA_VERSION >= 9000
+		soli = __shfl_sync(0xffffffff, soli, 0);
+#else
 		soli = __shfl(soli, 0);
+#endif
 
 		if (soli < MAXREALSOLS)
 		{
