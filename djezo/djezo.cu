@@ -353,7 +353,7 @@ public:
 
 		DigitFirst<RB, SM>(equi, tequihash_header, tequihash_header_len, nonce, nonce_len);
 
-		digit_1<RB, SM, SSM, PACKER, 4 * NRESTS, 512> << <4096, 512 >> >(equi);
+		Digit_1<RB, SM, SSM, 512>(equi);
 
 		digit_2<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <blocks, THREADS >> >(equi);
 

@@ -223,15 +223,14 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state
 		Slot* s = &equi->round0trees[bucketid][slotp];
 
 		uint4 tt;
-		tt.x = __byte_perm(v32[0], v32[1], 0x1234);
-		tt.y = __byte_perm(v32[1], v32[2], 0x1234);
-		tt.z = __byte_perm(v32[2], v32[3], 0x1234);
-		tt.w = __byte_perm(v32[3], v32[4], 0x1234);
+		tt.x = __byte_perm(v32[2], v32[3], 0x1234);
+		tt.y = __byte_perm(v32[3], v32[4], 0x1234);
+		tt.z = __byte_perm(v32[4], v32[5], 0x1234);
+		tt.w = __byte_perm(v32[5], v32[6], 0x1234);
 		*(uint4*)(&s->hash[0]) = tt;
 
-		tt.x = __byte_perm(v32[4], v32[5], 0x1234);
-		tt.y = __byte_perm(v32[5], v32[6], 0x1234);
-		tt.z = 0;
+		tt.x = __byte_perm(v32[0], v32[1], 0x1234);
+		tt.y = __byte_perm(v32[1], v32[2], 0x1234);
 		tt.w = block << 1;
 		*(uint4*)(&s->hash[4]) = tt;
 	}
@@ -244,15 +243,14 @@ __global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state
 		Slot* s = &equi->round0trees[bucketid][slotp];
 
 		uint4 tt;
-		tt.x = __byte_perm(v32[6], v32[7], 0x2345);
-		tt.y = __byte_perm(v32[7], v32[8], 0x2345);
-		tt.z = __byte_perm(v32[8], v32[9], 0x2345);
-		tt.w = __byte_perm(v32[9], v32[10], 0x2345);
+		tt.x = __byte_perm(v32[8], v32[9], 0x2345);
+		tt.y = __byte_perm(v32[9], v32[10], 0x2345);
+		tt.z = __byte_perm(v32[10], v32[11], 0x2345);
+		tt.w = __byte_perm(v32[11], v32[12], 0x2345);
 		*(uint4*)(&s->hash[0]) = tt;
 
-		tt.x = __byte_perm(v32[10], v32[11], 0x2345);
-		tt.y = __byte_perm(v32[11], v32[12], 0x2345);
-		tt.z = 0;
+		tt.x = __byte_perm(v32[6], v32[7], 0x2345);
+		tt.y = __byte_perm(v32[7], v32[8], 0x2345);
 		tt.w = (block << 1) + 1;
 		*(uint4*)(&s->hash[4]) = tt;
 	}

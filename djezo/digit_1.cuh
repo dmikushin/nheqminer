@@ -1,3 +1,5 @@
+namespace digit_1 {
+
 /*
   Functions digit_1 to digit_8 works by the same principle;
   Each thread does 2-3 slot loads (loads are coalesced). 
@@ -9,8 +11,8 @@
   In most cases, all threads have one (or two) pairs so with this trick, we offload memory writes a bit in last step.
   In last step we save xorwork of pairs in memory.
 */
-template <uint32_t RB, uint32_t SM, int SSM, typename PACKER, uint32_t MAXPAIRS, uint32_t THREADS>
-__global__ void digit_1(Equi<RB, SM>* eq)
+template <uint32_t RB, uint32_t SM, int SSM, uint32_t THREADS>
+__global__ void kernelDigit_1(Equi<RB, SM>* eq)
 {
 	__shared__ uint16_t ht[256][SSM - 1];
 	__shared__ uint2 lastword1[RB8_NSLOTS];
@@ -24,8 +26,6 @@ __global__ void digit_1(Equi<RB, SM>* eq)
 	if (threadid < 256)
 		ht_len[threadid] = 0;
 
-	uint32_t bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS);
-
 	uint32_t hr[2];
 	uint8_t pos[2];
 	pos[0] = pos[1] = SSM;
@@ -37,24 +37,20 @@ __global__ void digit_1(Equi<RB, SM>* eq)
 	// disabled gains some speed, but can rarely cause a crash
 	__syncthreads();
 
-#pragma unroll
+	uint32_t bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS);
+
+	#pragma unroll
 	for (uint32_t i = 0; i != 2; ++i)
 	{
 		uint32_t si = i * THREADS + threadid;
 		if (si >= bsize) break;
 
-		const Slot* pslot1 = eq->round0trees[bucketid] + si;
+		const Slot* pslot1 = &eq->round0trees[bucketid][si];
 
 		// get xhash
-		uint4 a1 = *(uint4*)(&pslot1->hash[0]);
-		uint2 a2 = *(uint2*)(&pslot1->hash[4]);
-		ta[i].x = a1.x;
-		ta[i].y = a1.y;
+		tb[i] = *(uint4*)(&pslot1->hash[0]);
+		ta[i] = *(uint2*)(&pslot1->hash[4]);
 		lastword1[si] = ta[i];
-		tb[i].x = a1.z;
-		tb[i].y = a1.w;
-		tb[i].z = a2.x;
-		tb[i].w = a2.y;
 		lastword2[si] = tb[i];
 
 		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr[i]) : "r"(ta[i].x));
@@ -126,5 +122,26 @@ __global__ void digit_1(Equi<RB, SM>* eq)
 			}
 		}
 	}
+}
+
+} // namespace digit_1
+
+template <uint32_t RB, uint32_t SM, int SSM, uint32_t THREADS>
+__forceinline__ void Digit_1(Equi<RB, SM>* equi)
+{
+	using namespace digit_1;
+
+	/*int numBlocksPerSm = 0;
+	CUDA_ERR_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, kernelDigit_1<RB, SM, SSM, 512>, 512, 0));
+
+	cudaDeviceProp props;
+	CUDA_ERR_CHECK(cudaGetDeviceProperties(&props, 0));
+	int nsms = props.multiProcessorCount;
+	
+	int numBlocks = numBlocksPerSm * nsms;
+
+	kernelDigit_1<RB, SM, SSM, 512> << <numBlocks, 512 >> >(equi, 4096);*/
+
+	kernelDigit_1<RB, SM, SSM, 512> << <4096, 512 >> >(equi);
 }
 
