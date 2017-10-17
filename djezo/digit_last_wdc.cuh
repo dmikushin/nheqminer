@@ -135,16 +135,6 @@ __global__ void kernel(Equi<RB, SM>* eq)
 		if (lane % 2 == 0)
 			CALC_LEVEL(0, lane, lane + 1, 4);
 
-		uint32_t ind[16];
-
-		uint32_t f1 = levels[lane];
-		const SlotTiny* buck_v4 = &eq->round3trees[PACKER::get_bucketid(f1, RB, SM)].treestiny[0];
-		const uint32_t slot1_v4 = PACKER::get_slot1(f1, RB, SM);
-		const uint32_t slot0_v4 = PACKER::get_slot0(f1, slot1_v4, RB, SM);
-
-		susp[lane] = 0xffffffff;
-		susp[32 + lane] = 0xffffffff;
-
 #if CUDA_VERSION >= 9000
 #define CHECK_DUP(a) \
 	__any_sync(0xffffffff, atomicExch(&susp[(ind[a] & ((1 << DUPBITS) - 1))], (ind[a] >> DUPBITS)) == (ind[a] >> DUPBITS))
@@ -153,69 +143,25 @@ __global__ void kernel(Equi<RB, SM>* eq)
 	__any(atomicExch(&susp[(ind[a] & ((1 << DUPBITS) - 1))], (ind[a] >> DUPBITS)) == (ind[a] >> DUPBITS))
 #endif
 
+		uint32_t f1 = levels[lane];
+		const SlotTiny* buck_v4 = &eq->round3trees[PACKER::get_bucketid(f1, RB, SM)].treestiny[0];
+		const uint32_t slot1_v4 = PACKER::get_slot1(f1, RB, SM);
+		const uint32_t slot0_v4 = PACKER::get_slot0(f1, slot1_v4, RB, SM);
+
 		uint32_t f2 = buck_v4[slot1_v4].hash[1];
 		const SlotTiny* buck_v3_1 = &eq->round2trees[PACKER::get_bucketid(f2, RB, SM)].treestiny[0];
 		const uint32_t slot1_v3_1 = PACKER::get_slot1(f2, RB, SM);
 		const uint32_t slot0_v3_1 = PACKER::get_slot0(f2, slot1_v3_1, RB, SM);
-
-		susp[64 + lane] = 0xffffffff;
-		susp[96 + lane] = 0xffffffff;
 
 		uint32_t f0 = buck_v3_1[slot1_v3_1].hash[1];
 		const Slot* buck_v2_1 = eq->trees[0][PACKER::get_bucketid(f0, RB, SM)];
 		const uint32_t slot1_v2_1 = PACKER::get_slot1(f0, RB, SM);
 		const uint32_t slot0_v2_1 = PACKER::get_slot0(f0, slot1_v2_1, RB, SM);
 
-		susp[128 + lane] = 0xffffffff;
-		susp[160 + lane] = 0xffffffff;
-
-		uint32_t f3 = buck_v2_1[slot1_v2_1].hash[6];
-		const Slot* buck_fin_1 = eq->round0trees[DefaultPacker::get_bucketid(f3, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_1 = DefaultPacker::get_slot1(f3, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_1 = DefaultPacker::get_slot0(f3, slot1_fin_1, 8, RB8_NSLOTS);
-
-		susp[192 + lane] = 0xffffffff;
-		susp[224 + lane] = 0xffffffff;
-
-		ind[0] = buck_fin_1[slot1_fin_1].hash[7];
-		if (CHECK_DUP(0)) continue;
-		ind[1] = buck_fin_1[slot0_fin_1].hash[7];
-		if (CHECK_DUP(1)) continue;
-
-		uint32_t f4 = buck_v2_1[slot0_v2_1].hash[6];
-		const Slot* buck_fin_2 = eq->round0trees[DefaultPacker::get_bucketid(f4, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_2 = DefaultPacker::get_slot1(f4, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_2 = DefaultPacker::get_slot0(f4, slot1_fin_2, 8, RB8_NSLOTS);
-
-		ind[2] = buck_fin_2[slot1_fin_2].hash[7];
-		if (CHECK_DUP(2)) continue;
-		ind[3] = buck_fin_2[slot0_fin_2].hash[7];
-		if (CHECK_DUP(3)) continue;
-
 		uint32_t f5 = buck_v3_1[slot0_v3_1].hash[1];
 		const Slot* buck_v2_2 = eq->trees[0][PACKER::get_bucketid(f5, RB, SM)];
 		const uint32_t slot1_v2_2 = PACKER::get_slot1(f5, RB, SM);
 		const uint32_t slot0_v2_2 = PACKER::get_slot0(f5, slot1_v2_2, RB, SM);
-
-		uint32_t f6 = buck_v2_2[slot1_v2_2].hash[6];
-		const Slot* buck_fin_3 = eq->round0trees[DefaultPacker::get_bucketid(f6, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_3 = DefaultPacker::get_slot1(f6, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_3 = DefaultPacker::get_slot0(f6, slot1_fin_3, 8, RB8_NSLOTS);
-
-		ind[4] = buck_fin_3[slot1_fin_3].hash[7];
-		if (CHECK_DUP(4)) continue;
-		ind[5] = buck_fin_3[slot0_fin_3].hash[7];
-		if (CHECK_DUP(5)) continue;
-
-		uint32_t f7 = buck_v2_2[slot0_v2_2].hash[6];
-		const Slot* buck_fin_4 = eq->round0trees[DefaultPacker::get_bucketid(f7, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_4 = DefaultPacker::get_slot1(f7, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_4 = DefaultPacker::get_slot0(f7, slot1_fin_4, 8, RB8_NSLOTS);
-
-		ind[6] = buck_fin_4[slot1_fin_4].hash[7];
-		if (CHECK_DUP(6)) continue;
-		ind[7] = buck_fin_4[slot0_fin_4].hash[7];
-		if (CHECK_DUP(7)) continue;
 
 		uint32_t f8 = buck_v4[slot0_v4].hash[1];
 		const SlotTiny* buck_v3_2 = &eq->round2trees[PACKER::get_bucketid(f8, RB, SM)].treestiny[0];
@@ -227,50 +173,48 @@ __global__ void kernel(Equi<RB, SM>* eq)
 		const uint32_t slot1_v2_3 = PACKER::get_slot1(f9, RB, SM);
 		const uint32_t slot0_v2_3 = PACKER::get_slot0(f9, slot1_v2_3, RB, SM);
 
-		uint32_t f10 = buck_v2_3[slot1_v2_3].hash[6];
-		const Slot* buck_fin_5 = eq->round0trees[DefaultPacker::get_bucketid(f10, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_5 = DefaultPacker::get_slot1(f10, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_5 = DefaultPacker::get_slot0(f10, slot1_fin_5, 8, RB8_NSLOTS);
-
-		ind[8] = buck_fin_5[slot1_fin_5].hash[7];
-		if (CHECK_DUP(8)) continue;
-		ind[9] = buck_fin_5[slot0_fin_5].hash[7];
-		if (CHECK_DUP(9)) continue;
-
-		uint32_t f11 = buck_v2_3[slot0_v2_3].hash[6];
-		const Slot* buck_fin_6 = eq->round0trees[DefaultPacker::get_bucketid(f11, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_6 = DefaultPacker::get_slot1(f11, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_6 = DefaultPacker::get_slot0(f11, slot1_fin_6, 8, RB8_NSLOTS);
-
-		ind[10] = buck_fin_6[slot1_fin_6].hash[7];
-		if (CHECK_DUP(10)) continue;
-		ind[11] = buck_fin_6[slot0_fin_6].hash[7];
-		if (CHECK_DUP(11)) continue;
-
 		uint32_t f12 = buck_v3_2[slot0_v3_2].hash[1];
 		const Slot* buck_v2_4 = eq->trees[0][PACKER::get_bucketid(f12, RB, SM)];
 		const uint32_t slot1_v2_4 = PACKER::get_slot1(f12, RB, SM);
 		const uint32_t slot0_v2_4 = PACKER::get_slot0(f12, slot1_v2_4, RB, SM);
 
-		uint32_t f13 = buck_v2_4[slot1_v2_4].hash[6];
-		const Slot* buck_fin_7 = eq->round0trees[DefaultPacker::get_bucketid(f13, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_7 = DefaultPacker::get_slot1(f13, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_7 = DefaultPacker::get_slot0(f13, slot1_fin_7, 8, RB8_NSLOTS);
+		uint32_t ind[16] = { buck_v2_1[slot1_v2_1].hash[6], 0, buck_v2_1[slot0_v2_1].hash[6], 0, buck_v2_2[slot1_v2_2].hash[6], 0, buck_v2_2[slot0_v2_2].hash[6], 0, buck_v2_3[slot1_v2_3].hash[6], 0, buck_v2_3[slot0_v2_3].hash[6], 0, buck_v2_4[slot1_v2_4].hash[6], 0, buck_v2_4[slot0_v2_4].hash[6], 0 };
 
-		ind[12] = buck_fin_7[slot1_fin_7].hash[7];
-		if (CHECK_DUP(12)) continue;
-		ind[13] = buck_fin_7[slot0_fin_7].hash[7];
-		if (CHECK_DUP(13)) continue;
+		susp[lane] = 0xffffffff;
+		susp[32 + lane] = 0xffffffff;
+		susp[64 + lane] = 0xffffffff;
+		susp[96 + lane] = 0xffffffff;
+		susp[128 + lane] = 0xffffffff;
+		susp[160 + lane] = 0xffffffff;
+		susp[192 + lane] = 0xffffffff;
+		susp[224 + lane] = 0xffffffff;
 
-		uint32_t f14 = buck_v2_4[slot0_v2_4].hash[6];
-		const Slot* buck_fin_8 = eq->round0trees[DefaultPacker::get_bucketid(f14, 8, RB8_NSLOTS)];
-		const uint32_t slot1_fin_8 = DefaultPacker::get_slot1(f14, 8, RB8_NSLOTS);
-		const uint32_t slot0_fin_8 = DefaultPacker::get_slot0(f14, slot1_fin_8, 8, RB8_NSLOTS);
+		#pragma nounroll
+		for (int i = 0; i < 7; i++)
+		{
+			const uint32_t& f = ind[2 * i];
+			const Slot* buck_fin = eq->round0trees[DefaultPacker::get_bucketid(f, 8, RB8_NSLOTS)];
+			uint32_t slot1_fin = DefaultPacker::get_slot1(f, 8, RB8_NSLOTS);
+			uint32_t slot0_fin = DefaultPacker::get_slot0(f, slot1_fin, 8, RB8_NSLOTS);
 
-		ind[14] = buck_fin_8[slot1_fin_8].hash[7];
-		if (CHECK_DUP(14)) continue;
-		ind[15] = buck_fin_8[slot0_fin_8].hash[7];
-		if (CHECK_DUP(15)) continue;
+			ind[2 * i] = buck_fin[slot1_fin].hash[7];
+			if (CHECK_DUP(2 * i)) continue;
+			ind[2 * i + 1] = buck_fin[slot0_fin].hash[7];
+			if (CHECK_DUP(2 * i + 1)) continue;
+		}
+
+		{
+			int i = 7;
+			const uint32_t& f = ind[2 * i];
+			const Slot* buck_fin = eq->round0trees[DefaultPacker::get_bucketid(f, 8, RB8_NSLOTS)];
+			uint32_t slot1_fin = DefaultPacker::get_slot1(f, 8, RB8_NSLOTS);
+			uint32_t slot0_fin = DefaultPacker::get_slot0(f, slot1_fin, 8, RB8_NSLOTS);
+
+			ind[2 * i] = buck_fin[slot1_fin].hash[7];
+			if (CHECK_DUP(2 * i)) continue;
+			ind[2 * i + 1] = buck_fin[slot0_fin].hash[7];
+			if (CHECK_DUP(2 * i + 1)) continue;
+		}
 
 		uint32_t soli;
 		if (lane == 0)
