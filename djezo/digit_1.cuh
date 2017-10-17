@@ -15,7 +15,7 @@ template <uint32_t RB, uint32_t SM, int SSM, uint32_t THREADS>
 __global__ void kernelDigit_1(Equi<RB, SM>* eq)
 {
 	__shared__ uint16_t ht[256][SSM - 1];
-	__shared__ int ht_len[256];
+	__shared__ uint ht_len[256 / 4]; // atomic adds on 1-byte lengths
 	__shared__ uint2 lastword1[RB8_NSLOTS];
 	__shared__ uint4 lastword2[RB8_NSLOTS];
 
@@ -23,7 +23,7 @@ __global__ void kernelDigit_1(Equi<RB, SM>* eq)
 	const uint32_t bucketid = blockIdx.x;
 
 	// reset hashtable len
-	if (threadid < 256)
+	if (threadid < 256 / 4)
 		ht_len[threadid] = 0;
 
 	uint32_t hr[2];
@@ -54,7 +54,8 @@ __global__ void kernelDigit_1(Equi<RB, SM>* eq)
 		lastword2[si] = tb[i];
 
 		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr[i]) : "r"(ta[i].x));
-		pos[i] = atomicAdd(&ht_len[hr[i]], 1);
+		int shift = (hr[i] % 4) * 8;
+		pos[i] = (atomicAdd(&ht_len[hr[i] / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
 		if (pos[i] < (SSM - 1)) ht[hr[i]][pos[i]] = si;
 	}
 
