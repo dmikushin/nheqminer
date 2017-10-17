@@ -12,7 +12,7 @@ namespace digit_1 {
   In last step we save xorwork of pairs in memory.
 */
 template <uint32_t RB, uint32_t SM, int SSM, uint32_t THREADS>
-__global__ void kernelDigit_1(Equi<RB, SM>* eq)
+__global__ void kernel(Equi<RB, SM>* eq)
 {
 	__shared__ uint16_t ht[256][SSM - 1];
 	__shared__ uint ht_len[256 / 4]; // atomic adds on 1-byte lengths
@@ -107,6 +107,6 @@ __forceinline__ void Digit_1(Equi<RB, SM>* equi)
 {
 	using namespace digit_1;
 
-	kernelDigit_1<RB, SM, SSM, 512> << <4096, 512 >> >(equi);
+	kernel<RB, SM, SSM, 512> << <4096, 512 >> >(equi);
 }
 

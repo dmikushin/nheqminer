@@ -4,7 +4,7 @@ template <uint32_t RB, uint32_t SM, int SSM, typename PACKER, uint32_t THREADS>
 __global__ void kernelDigit_2(Equi<RB, SM>* eq)
 {
 	__shared__ uint16_t ht[NRESTS][SSM - 1];
-	__shared__ int ht_len[NRESTS / 4]; // atomic adds on 1-byte lengths
+	__shared__ uint ht_len[NRESTS / 4]; // atomic adds on 1-byte lengths
 	__shared__ uint32_t lastword1[NSLOTS];
 	__shared__ uint4 lastword2[NSLOTS];
 

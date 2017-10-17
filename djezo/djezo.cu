@@ -352,21 +352,21 @@ public:
 
 		Digit_2<RB, SM, SSM, PACKER, THREADS>(equi);
 
-		digit_3<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <NBUCKETS, THREADS >> >(equi);
+		Digit_3<RB, SM, SSM, PACKER, THREADS>(equi);
 
 		if (cancelf()) return;
 
-		digit_4<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <NBUCKETS, THREADS >> >(equi);
+		Digit_4<RB, SM, SSM, PACKER, THREADS>(equi);
 
-		digit_5<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <NBUCKETS, THREADS >> >(equi);
+		Digit_5<RB, SM, SSM, PACKER, THREADS>(equi);
 
-		digit_6<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <NBUCKETS, NRESTS >> >(equi);
+		Digit_6<RB, SM, SSM - 1, PACKER>(equi);
 
-		digit_7<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <NBUCKETS, NRESTS >> >(equi);
+		Digit_7<RB, SM, SSM - 1, PACKER>(equi);
 
-		digit_8<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <NBUCKETS, NRESTS >> >(equi);
+		Digit_8<RB, SM, SSM - 1, PACKER>(equi);
 
-		digit_last_wdc<RB, SM, SSM - 3, 2, PACKER, 64, 8, 4> << <4096, 256 / 2 >> >(equi);
+		DigitLastWDC<RB, SM, SSM - 3, 2, PACKER, 64, 8, 4>(equi);
 
 		CUDA_ERR_CHECK(cudaMemcpy(solutions, &equi->edata.solutions, (MAXREALSOLS * (512 * 4)) + 4, cudaMemcpyDeviceToHost));
 
@@ -412,7 +412,7 @@ public:
 
 extern "C" ISolver* djezoSolver(int platformID, int deviceID)
 {
-	static std::unique_ptr<djezo::DjEzo<9, 1248, 12, 640, djezo::CantorPacker> > solver;
+	static std::unique_ptr<djezo::DjEzo<9, 1280, 12, 640, djezo::CantorPacker> > solver;
 	if (solver.get())
 	{
 		if ((solver->platformID != platformID) || (solver->deviceID != deviceID))
@@ -420,7 +420,7 @@ extern "C" ISolver* djezoSolver(int platformID, int deviceID)
 	}
 	if (!solver.get())
 	{
-		solver.reset(new djezo::DjEzo<9, 1248, 12, 640, djezo::CantorPacker>(platformID, deviceID));
+		solver.reset(new djezo::DjEzo<9, 1280, 12, 640, djezo::CantorPacker>(platformID, deviceID));
 	}
 	
 	return dynamic_cast<ISolver*>(solver.get());

@@ -1,20 +1,18 @@
-template <uint32_t RB, uint32_t SM, int SSM, typename PACKER, uint32_t MAXPAIRS, uint32_t THREADS>
-__global__ void digit_4(Equi<RB, SM>* eq)
+namespace digit_4 {
+
+template <uint32_t RB, uint32_t SM, int SSM, typename PACKER, uint32_t THREADS>
+__global__ void kernel(Equi<RB, SM>* eq)
 {
 	__shared__ uint16_t ht[NRESTS][(SSM - 1)];
+	__shared__ uint ht_len[NRESTS / 4]; // atomic adds on 1-byte lengths
 	__shared__ uint4 lastword[NSLOTS];
-	__shared__ int ht_len[NRESTS];
-	__shared__ int pairs[MAXPAIRS];
-	__shared__ uint32_t pairs_len;
 
 	const uint32_t threadid = threadIdx.x;
 	const uint32_t bucketid = blockIdx.x;
 
 	// reset hashtable len
-	if (threadid < NRESTS)
+	if (threadid < NRESTS / 4)
 		ht_len[threadid] = 0;
-	else if (threadid == (THREADS - 1))
-		pairs_len = 0;
 
 	uint32_t bsize = umin(eq->edata.nslots[3][bucketid], NSLOTS);
 
@@ -27,9 +25,9 @@ __global__ void digit_4(Equi<RB, SM>* eq)
 
 	// enable this to make fully safe shared mem operations;
 	// disabled gains some speed, but can rarely cause a crash
-	//__syncthreads();
+	__syncthreads();
 
-#pragma unroll
+	#pragma unroll
 	for (uint32_t i = 0; i != 2; ++i)
 	{
 		si[i] = i * THREADS + threadid;
@@ -42,7 +40,8 @@ __global__ void digit_4(Equi<RB, SM>* eq)
 		tt[i] = *(uint4*)(&xs.hash[0]);
 		lastword[si[i]] = tt[i];
 		hr[i] = xst.hash[0] & RESTMASK;
-		pos[i] = atomicAdd(&ht_len[hr[i]], 1);
+		int shift = (hr[i] % 4) * 8;
+		pos[i] = (atomicAdd(&ht_len[hr[i] / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
 		if (pos[i] < (SSM - 1)) ht[hr[i]][pos[i]] = si[i];
 	}
 
@@ -50,7 +49,7 @@ __global__ void digit_4(Equi<RB, SM>* eq)
 	uint32_t xors[4];
 	uint32_t xorbucketid, xorslot;
 
-#pragma unroll
+	#pragma unroll
 	for (uint32_t i = 0; i != 2; ++i)
 	{
 		if (pos[i] >= SSM) continue;
@@ -76,35 +75,35 @@ __global__ void digit_4(Equi<RB, SM>* eq)
 
 			for (int k = 1; k != pos[i]; ++k)
 			{
-				uint32_t pindex = atomicAdd(&pairs_len, 1);
-				if (pindex >= MAXPAIRS) break;
 				uint16_t prev = ht[hr[i]][k];
-				pairs[pindex] = __byte_perm(si[i], prev, 0x1054);
+				int pair = __byte_perm(si[i], prev, 0x1054);
+				uint32_t i = __byte_perm(pair, 0, 0x4510);
+				uint32_t k = __byte_perm(pair, 0, 0x4532);
+
+				*(uint4*)(&xors[0]) = lastword[i] ^ lastword[k];
+				if (xors[3] != 0)
+				{
+					asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(xors[0]), "r"(4 + RB), "r"(BUCKBITS));
+					xorslot = atomicAdd(&eq->edata.nslots[4][xorbucketid], 1);
+					if (xorslot < NSLOTS)
+					{
+						SlotSmall &xs = eq->treessmall[3][xorbucketid][xorslot];
+						*(uint4*)(&xs.hash[0]) = *(uint4*)(&xors[0]);
+						eq->round4bidandsids[xorbucketid][xorslot] = PACKER::set_bucketid_and_slots(bucketid, i, k, RB, SM);
+					}
+				}
 			}
 		}
 	}
+}
 
-	__syncthreads();
+} // namespace digit_4
 
-	// process pairs
-	for (uint32_t s = threadIdx.x, plen = umin(pairs_len, MAXPAIRS); s < plen; s += blockDim.x)
-	{
-		int pair = pairs[s];
-		uint32_t i = __byte_perm(pair, 0, 0x4510);
-		uint32_t k = __byte_perm(pair, 0, 0x4532);
+template <uint32_t RB, uint32_t SM, int SSM, typename PACKER, uint32_t THREADS>
+__forceinline__ void Digit_4(Equi<RB, SM>* equi)
+{
+	using namespace digit_4;
 
-		*(uint4*)(&xors[0]) = lastword[i] ^ lastword[k];
-		if (xors[3] != 0)
-		{
-			asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(xors[0]), "r"(4 + RB), "r"(BUCKBITS));
-			xorslot = atomicAdd(&eq->edata.nslots[4][xorbucketid], 1);
-			if (xorslot < NSLOTS)
-			{
-				SlotSmall &xs = eq->treessmall[3][xorbucketid][xorslot];
-				*(uint4*)(&xs.hash[0]) = *(uint4*)(&xors[0]);
-				eq->round4bidandsids[xorbucketid][xorslot] = PACKER::set_bucketid_and_slots(bucketid, i, k, RB, SM);
-			}
-		}
-	}
+	kernel<RB, SM, SSM, PACKER, THREADS> << <NBUCKETS, THREADS >> >(equi);
 }
 

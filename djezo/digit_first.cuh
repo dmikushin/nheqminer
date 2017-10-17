@@ -62,7 +62,7 @@ typedef union
 DigitFirstState;
 
 template <uint32_t RB, uint32_t SM>
-__global__ void kernelDigitFirst(Equi<RB, SM>* equi, const DigitFirstState state)
+__global__ void kernel(Equi<RB, SM>* equi, const DigitFirstState state)
 {
 	using namespace digit_first;
 
@@ -300,6 +300,6 @@ __forceinline__ void DigitFirst(Equi<RB, SM>* equi,
 	state.v[14] = BLAKE_IV6;
 	state.v[15] = BLAKE_IV7;
 
-	kernelDigitFirst<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi, state);
+	kernel<RB, SM> << <NBLOCKS / FD_THREADS, FD_THREADS >> >(equi, state);
 }
 

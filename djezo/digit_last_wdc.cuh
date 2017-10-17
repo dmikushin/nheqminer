@@ -1,5 +1,7 @@
 #include <cuda.h> // CUDA_VERSION
 
+namespace digit_last_wdc {
+
 /*
   Last round function is similar to previous ones but has different ending.
   We use warps to process final candidates. Each warp process one candidate.
@@ -12,75 +14,71 @@
   dup check method is not exact so CPU dup checking is needed after.
 */
 template <uint32_t RB, uint32_t SM, int SSM, uint32_t FCT, typename PACKER, uint32_t MAXPAIRS, uint32_t DUPBITS, uint32_t W>
-__global__ void digit_last_wdc(Equi<RB, SM>* eq)
+__global__ void kernel(Equi<RB, SM>* eq)
 {
 	__shared__ uint8_t shared_data[8192];
 	int* ht_len = (int*)(&shared_data[0]);
 	int* pairs = ht_len;
-	uint32_t* lastword = (uint32_t*)(&shared_data[256 * 4]);
-	uint16_t* ht = (uint16_t*)(&shared_data[256 * 4 + RB8_NSLOTS_LD * 4]);
+	uint32_t* lastword = (uint32_t*)(&shared_data[256]);
+	uint16_t* ht = (uint16_t*)(&shared_data[256 + RB8_NSLOTS_LD * 4]);
 	uint32_t* pairs_len = (uint32_t*)(&shared_data[8188]);
 
 	const uint32_t threadid = threadIdx.x;
 	const uint32_t bucketid = blockIdx.x;
 
-	// reset hashtable len
-#pragma unroll
-	for (uint32_t i = 0; i != FCT; ++i)
-		ht_len[(i * (256 / FCT)) + threadid] = 0;
+	for (uint32_t i = threadid; i < 256; i += blockDim.x)
+		ht_len[i] = 0;
 
 	if (threadid == ((256 / FCT) - 1))
 		*pairs_len = 0;
 
 	SlotTiny* buck = eq->treestiny[0][bucketid];
-	uint32_t bsize = umin(eq->edata.nslots8[bucketid], RB8_NSLOTS_LD);
 
-	uint32_t si[3 * FCT];
 	uint32_t hr[3 * FCT];
 	int pos[3 * FCT];
-	uint32_t lw[3 * FCT];
-#pragma unroll
+
+	#pragma unroll
 	for (uint32_t i = 0; i != (3 * FCT); ++i)
 		pos[i] = SSM;
 
 	__syncthreads();
 
-#pragma unroll
+	uint32_t bsize = umin(eq->edata.nslots8[bucketid], RB8_NSLOTS_LD);
+
+	#pragma unroll
 	for (uint32_t i = 0; i != (3 * FCT); ++i)
 	{
-		si[i] = i * (256 / FCT) + threadid;
-		if (si[i] >= bsize) break;
+		int si = i * (256 / FCT) + threadid;
+		if (si >= bsize) break;
 
-		const SlotTiny* pslot1 = buck + si[i];
+		const SlotTiny* pslot1 = buck + si;
 
 		// get xhash
-		uint2 tt = *(uint2*)(&pslot1->hash[0]);
-		lw[i] = tt.x;
-		lastword[si[i]] = lw[i];
-
-		uint32_t a;
-		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(a) : "r"(lw[i]));
-		hr[i] = a;
-
-		pos[i] = atomicAdd(&ht_len[hr[i]], 1);
-		if (pos[i] < (SSM - 1))
-			ht[hr[i] * (SSM - 1) + pos[i]] = si[i];
+		uint tt = *(uint*)(&pslot1->hash[0]);
+		lastword[si] = tt;
+		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr[i]) : "r"(tt));
+		int shift = (hr[i] % 4) * 8;
+		pos[i] = (atomicAdd(&ht_len[hr[i] / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
+		if (pos[i] < (SSM - 1)) ht[hr[i] * (SSM - 1) + pos[i]] = si;
 	}
 
 	__syncthreads();
 
-#pragma unroll
+	#pragma unroll
 	for (uint32_t i = 0; i != (3 * FCT); ++i)
 	{
 		if (pos[i] >= SSM) continue;
 
+		int si = i * (256 / FCT) + threadid;
+		const uint32_t& lw = lastword[si];
+
 		for (int k = 0; k != pos[i]; ++k)
 		{
 			uint16_t prev = ht[hr[i] * (SSM - 1) + k];
-			if (lw[i] != lastword[prev]) continue;
+			if (lw != lastword[prev]) continue;
 			uint32_t pindex = atomicAdd(pairs_len, 1);
 			if (pindex >= MAXPAIRS) break;
-			pairs[pindex] = __byte_perm(si[i], prev, 0x1054);
+			pairs[pindex] = __byte_perm(si, prev, 0x1054);
 		}
 	}
 
@@ -294,5 +292,15 @@ __global__ void digit_last_wdc(Equi<RB, SM>* eq)
 			*(uint4*)(&eq->edata.solutions.sols[soli][pos + 12]) = *(uint4*)(&ind[12]);
 		}
 	}
+}
+
+} // namespace digit_last_wdc
+
+template <uint32_t RB, uint32_t SM, int SSM, uint32_t FCT, typename PACKER, uint32_t MAXPAIRS, uint32_t DUPBITS, uint32_t W>
+__forceinline__ void DigitLastWDC(Equi<RB, SM>* equi)
+{
+	using namespace digit_last_wdc;
+
+	kernel<RB, SM, SSM, FCT, PACKER, MAXPAIRS, DUPBITS, W> << <4096, 256 / 2 >> >(equi);
 }
 
