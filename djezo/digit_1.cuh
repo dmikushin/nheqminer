@@ -107,17 +107,6 @@ __forceinline__ void Digit_1(Equi<RB, SM>* equi)
 {
 	using namespace digit_1;
 
-	/*int numBlocksPerSm = 0;
-	CUDA_ERR_CHECK(cudaOccupancyMaxActiveBlocksPerMultiprocessor(&numBlocksPerSm, kernelDigit_1<RB, SM, SSM, 512>, 512, 0));
-
-	cudaDeviceProp props;
-	CUDA_ERR_CHECK(cudaGetDeviceProperties(&props, 0));
-	int nsms = props.multiProcessorCount;
-	
-	int numBlocks = numBlocksPerSm * nsms;
-
-	kernelDigit_1<RB, SM, SSM, 512> << <numBlocks, 512 >> >(equi, 4096);*/
-
 	kernelDigit_1<RB, SM, SSM, 512> << <4096, 512 >> >(equi);
 }
 

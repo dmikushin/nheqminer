@@ -242,9 +242,6 @@ __device__ __forceinline__ uint4 operator^ (uint4 a, uint4 b)
 template<uint32_t RB, uint32_t SM, uint32_t SSM, uint32_t THREADS, class PACKER>
 class DjEzo : public ISolver
 {
-	int threadsperblock;
-	int blocks;
-	
 	std::vector<SolutionsContainer> vsolutions;
 	SolutionsContainer* solutions;
 
@@ -347,29 +344,27 @@ public:
 		std::function<void(const std::vector<uint32_t>&, size_t, const unsigned char*)> solutionf,
 		std::function<void(void)> hashdonef)
 	{
-		int blocks = NBUCKETS;
-
 		CUDA_ERR_CHECK(cudaMemset(&equi->edata, 0, sizeof(equi->edata)));
 
 		DigitFirst<RB, SM>(equi, tequihash_header, tequihash_header_len, nonce, nonce_len);
 
 		Digit_1<RB, SM, SSM, 512>(equi);
 
-		digit_2<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <blocks, THREADS >> >(equi);
+		Digit_2<RB, SM, SSM, PACKER, THREADS>(equi);
 
-		digit_3<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <blocks, THREADS >> >(equi);
+		digit_3<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <NBUCKETS, THREADS >> >(equi);
 
 		if (cancelf()) return;
 
-		digit_4<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <blocks, THREADS >> >(equi);
+		digit_4<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <NBUCKETS, THREADS >> >(equi);
 
-		digit_5<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <blocks, THREADS >> >(equi);
+		digit_5<RB, SM, SSM, PACKER, 4 * NRESTS, THREADS> << <NBUCKETS, THREADS >> >(equi);
 
-		digit_6<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <blocks, NRESTS >> >(equi);
+		digit_6<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <NBUCKETS, NRESTS >> >(equi);
 
-		digit_7<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <blocks, NRESTS >> >(equi);
+		digit_7<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <NBUCKETS, NRESTS >> >(equi);
 
-		digit_8<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <blocks, NRESTS >> >(equi);
+		digit_8<RB, SM, SSM - 1, PACKER, 3 * NRESTS> << <NBUCKETS, NRESTS >> >(equi);
 
 		digit_last_wdc<RB, SM, SSM - 3, 2, PACKER, 64, 8, 4> << <4096, 256 / 2 >> >(equi);
 
