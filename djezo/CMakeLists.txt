@@ -5,7 +5,12 @@ file(GLOB HEADERS djezo.hpp digit_first.cuh digit_1.cuh digit_2.cuh digit_3.cuh 
 
 FIND_PACKAGE(CUDA REQUIRED)
 
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-D_FORCE_INLINES;--ptxas-options=-v;-Xptxas=-dlcm=ca;-Xptxas=-dscm=cs; -O3) #; -maxrregcount=32)
+if (CMAKE_BUILD_TYPE_UPPER STREQUAL "RELEASE")
+set(CUDA_NVCC_FLAGS_RELEASE "-DNDEBUG;-D_FORCE_INLINES;-O3;--use_fast_math;-lineinfo;--ptxas-options=-v;-Xptxas=-dlcm=ca;-Xptxas=-dscm=cs;${CUDA_NVCC_FLAGS_RELEASE}")
+elseif (CMAKE_BUILD_TYPE_UPPER STREQUAL "DEBUG")
+set(CUDA_NVCC_FLAGS_DEBUG "-G;-O0;${CUDA_NVCC_FLAGS_DEBUG}")
+endif (CMAKE_BUILD_TYPE_UPPER STREQUAL "RELEASE")
+
 set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_61,code=sm_61)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})

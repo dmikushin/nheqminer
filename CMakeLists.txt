@@ -1,6 +1,10 @@
 project(nheqminer)
 cmake_minimum_required(VERSION 3.5)
 
+# Build configuration selection
+#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 option(USE_CPU_XENONCAT "Use XENONCAT (CPU)" ON)
@@ -15,9 +19,15 @@ if (USE_CUDA_DJEZO)
     message("-- USE_CUDA_DJEZO DEFINED")
 endif()
 
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE_UPPER)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -fPIC -O3 -ffast-math")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -fPIC -O3 -ffast-math")
+if (CMAKE_BUILD_TYPE_UPPER STREQUAL "RELEASE")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native -O3 -ffast-math")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -O3 -ffast-math")
+elseif (CMAKE_BUILD_TYPE_UPPER STREQUAL "DEBUG")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+endif (CMAKE_BUILD_TYPE_UPPER STREQUAL "RELEASE")
 
 # Common
 include_directories(${nheqminer_SOURCE_DIR}/nheqminer)
