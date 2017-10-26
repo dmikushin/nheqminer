@@ -1,5 +1,7 @@
 # Build instructions for Ubuntu 16.04
 
+Make sure to have CUDA >= v9.0 installed. CUDA 8 has compilation errors for sm_61 device.
+
 ```
 $ sudo apt-get install cmake fasm libboost-dev libboost-system-dev libboost-log-dev libboost-thread-dev
 $ git clone git@github.com:dmikushin/nheqminer.git
