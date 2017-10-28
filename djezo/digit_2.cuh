@@ -15,98 +15,70 @@ __global__ void kernelDigit_2(Equi<RB, SM>* eq)
 	if (threadid < NRESTS / 4)
 		ht_len[threadid] = 0;
 
-	uint32_t hr[2];
-	int pos[2];
-	pos[0] = pos[1] = SSM;
+	uint16_t* htp = (uint16_t*)ht;
+	for (int i = threadid, e = NRESTS * (SSM - 1); i < e; i += THREADS)
+		htp[i] = USHRT_MAX;
 
-	uint32_t ta[2];
-	uint4 tt[2];
-
-	// enable this to make fully safe shared mem operations;
-	// disabled gains some speed, but can rarely cause a crash
 	__syncthreads();
 
-	uint32_t bsize = umin(eq->edata.nslots[1][bucketid], NSLOTS);
-
-	#pragma unroll
-	for (uint32_t i = 0; i != 2; ++i)
+	for (uint32_t si = threadid, bsize = umin(eq->edata.nslots[1][bucketid], NSLOTS); si < bsize; si += THREADS)
 	{
-		uint32_t si = i * THREADS + threadid;
-		if (si >= bsize) break;
-
 		const Slot* pslot1 = &eq->trees[0][bucketid][si];
 
+		// get xhash
 		uint4 ttx = *(uint4*)(&pslot1->hash[0]);
-		lastword1[si] = ta[i] = ttx.x;
+		lastword1[si] = ttx.x;
 		uint2 tty = *(uint2*)(&pslot1->hash[4]);
-		tt[i].x = ttx.y;
-		tt[i].y = ttx.z;
-		tt[i].z = ttx.w;
-		tt[i].w = tty.x;
-		lastword2[si] = tt[i];
+		uint4 tt;
+		tt.x = ttx.y;
+		tt.y = ttx.z;
+		tt.z = ttx.w;
+		tt.w = tty.x;
+		lastword2[si] = tt;
 
-		hr[i] = tty.y & RESTMASK;
-		int shift = (hr[i] % 4) * 8;
-		pos[i] = (atomicAdd(&ht_len[hr[i] / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
-		if (pos[i] < (SSM - 1)) ht[hr[i]][pos[i]] = si;
+		uint32_t hr = tty.y & RESTMASK;
+		int shift = (hr % 4) * 8;
+		int pos = (atomicAdd(&ht_len[hr / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
+		if (pos < (SSM - 1)) ht[hr][pos] = si;
 	}
 
 	__syncthreads();
 
-	uint32_t xors[5];
-	uint32_t xorbucketid, xorslot;
-
-	#pragma unroll
-	for (uint32_t i = 0; i != 2; ++i)
+	for (int i = threadid, e = NRESTS * (SSM - 1); i < e; i += THREADS)
 	{
-		if (pos[i] >= SSM) continue;
+		int pos = i / NRESTS;
+		int hr = i - pos * NRESTS; // i % NRESTS;
 
-		if (pos[i] > 0)
+		int si = ht[hr][pos];
+		if (si == USHRT_MAX) continue;
+
+		for (int k = 0, pair = 0, ii = si, kk = ht[hr][0]; k < pos;
+			pair = __byte_perm(si, ht[hr][k], 0x1054),
+			ii = __byte_perm(pair, 0, 0x4510),
+			kk = __byte_perm(pair, 0, 0x4532))
 		{
-			uint32_t si = i * THREADS + threadid;
+			uint32_t xors[5];
 
-			uint16_t p = ht[hr[i]][0];
+			xors[0] = lastword1[ii] ^ lastword1[kk];
 
-			xors[0] = ta[i] ^ lastword1[p];
+			uint32_t xorbucketid = xors[0] >> (12 + RB);
+			int xorslot = atomicAdd(&eq->edata.nslots[2][xorbucketid], 1);
 
-			xorbucketid = xors[0] >> (12 + RB);
-			xorslot = atomicAdd(&eq->edata.nslots[2][xorbucketid], 1);
 			if (xorslot < NSLOTS)
 			{
-				*(uint4*)(&xors[1]) = tt[i] ^ lastword2[p];
+				*(uint4*)(&xors[1]) = lastword2[ii] ^ lastword2[kk];
 				SlotSmall &xs = eq->round2trees[xorbucketid].treessmall[xorslot];
 				*(uint4*)(&xs.hash[0]) = *(uint4*)(&xors[0]);
 				SlotTiny &xst = eq->round2trees[xorbucketid].treestiny[xorslot];
 				uint2 ttx;
 				ttx.x = xors[4];
-				ttx.y = PACKER::set_bucketid_and_slots(bucketid, si, p, RB, SM);
+				ttx.y = PACKER::set_bucketid_and_slots(bucketid, ii, kk, RB, SM);
 				*(uint2*)(&xst.hash[0]) = ttx;
 			}
-
-			for (int k = 1; k != pos[i]; ++k)
-			{
-				uint16_t prev = ht[hr[i]][k];
-				int pair = __byte_perm(si, prev, 0x1054);
-
-				uint32_t i = __byte_perm(pair, 0, 0x4510);
-				uint32_t k = __byte_perm(pair, 0, 0x4532);
-
-				xors[0] = lastword1[i] ^ lastword1[k];
-
-				xorbucketid = xors[0] >> (12 + RB);
-				xorslot = atomicAdd(&eq->edata.nslots[2][xorbucketid], 1);
-				if (xorslot < NSLOTS)
-				{
-					*(uint4*)(&xors[1]) = lastword2[i] ^ lastword2[k];
-					SlotSmall &xs = eq->round2trees[xorbucketid].treessmall[xorslot];
-					*(uint4*)(&xs.hash[0]) = *(uint4*)(&xors[0]);
-					SlotTiny &xst = eq->round2trees[xorbucketid].treestiny[xorslot];
-					uint2 ttx;
-					ttx.x = xors[4];
-					ttx.y = PACKER::set_bucketid_and_slots(bucketid, i, k, RB, SM);
-					*(uint2*)(&xst.hash[0]) = ttx;
-				}
-			}
+			
+			k++;
+			
+			if (k == pos) break;
 		}
 	}
 }

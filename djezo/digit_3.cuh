@@ -15,62 +15,56 @@ __global__ void kernel(Equi<RB, SM>* eq)
 	if (threadid < NRESTS / 4)
 		ht_len[threadid] = 0;
 
-	uint32_t hr[2];
-	int pos[2];
-	pos[0] = pos[1] = SSM;
+	uint16_t* htp = (uint16_t*)ht;
+	for (int i = threadid, e = NRESTS * (SSM - 1); i < e; i += THREADS)
+		htp[i] = USHRT_MAX;
 
-	uint32_t si[2];
-	uint4 tt[2];
-	uint32_t ta[2];
-
-	// enable this to make fully safe shared mem operations;
-	// disabled gains some speed, but can rarely cause a crash
 	__syncthreads();
 
-	uint32_t bsize = umin(eq->edata.nslots[2][bucketid], NSLOTS);
-
-	#pragma unroll
-	for (uint32_t i = 0; i != 2; ++i)
+	for (uint32_t si = threadid, bsize = umin(eq->edata.nslots[2][bucketid], NSLOTS); si < bsize; si += THREADS)
 	{
-		si[i] = i * THREADS + threadid;
-		if (si[i] >= bsize) break;
+		SlotSmall &xs = eq->round2trees[bucketid].treessmall[si];
+		SlotTiny &xst = eq->round2trees[bucketid].treestiny[si];
 
-		SlotSmall &xs = eq->round2trees[bucketid].treessmall[si[i]];
-		SlotTiny &xst = eq->round2trees[bucketid].treestiny[si[i]];
-
-		tt[i] = *(uint4*)(&xs.hash[0]);
-		lastword2[si[i]] = tt[i];
-		ta[i] = xst.hash[0];
-		lastword1[si[i]] = ta[i];
-		asm("bfe.u32 %0, %1, 12, %2;" : "=r"(hr[i]) : "r"(tt[i].x), "r"(RB));
-		int shift = (hr[i] % 4) * 8;
-		pos[i] = (atomicAdd(&ht_len[hr[i] / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
-		if (pos[i] < (SSM - 1)) ht[hr[i]][pos[i]] = si[i];
+		// get xhash
+		uint4 tt = *(uint4*)(&xs.hash[0]);
+		lastword2[si] = tt;
+		lastword1[si] = xst.hash[0];
+		
+		uint32_t hr;
+		asm("bfe.u32 %0, %1, 12, %2;" : "=r"(hr) : "r"(tt.x), "r"(RB));
+		int shift = (hr % 4) * 8;
+		int pos = (atomicAdd(&ht_len[hr / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
+		if (pos < (SSM - 1)) ht[hr][pos] = si;
 	}
 
 	__syncthreads();
 
-	uint32_t xors[5];
-	uint32_t bexor, xorbucketid, xorslot;
-
-	#pragma unroll
-	for (uint32_t i = 0; i != 2; ++i)
+	for (int i = threadid, e = NRESTS * (SSM - 1); i < e; i += THREADS)
 	{
-		if (pos[i] >= SSM) continue;
+		int pos = i / NRESTS;
+		int hr = i - pos * NRESTS; // i % NRESTS;
 
-		if (pos[i] > 0)
+		int si = ht[hr][pos];
+		if (si == USHRT_MAX) continue;
+
+		for (int k = 0, pair = 0, ii = si, kk = ht[hr][0]; k < pos;
+			pair = __byte_perm(si, ht[hr][k], 0x1054),
+			ii = __byte_perm(pair, 0, 0x4510),
+			kk = __byte_perm(pair, 0, 0x4532))
 		{
-			uint16_t p = ht[hr[i]][0];
+			uint32_t xors[5];
 
-			xors[4] = ta[i] ^ lastword1[p];
+			xors[4] = lastword1[ii] ^ lastword1[kk];
 
 			if (xors[4] != 0)
 			{
-				*(uint4*)(&xors[0]) = tt[i] ^ lastword2[p];
+				*(uint4*)(&xors[0]) = lastword2[ii] ^ lastword2[kk];
 
-				bexor = __byte_perm(xors[0], xors[1], 0x2107);
+				uint32_t xorbucketid;
+				uint32_t bexor = __byte_perm(xors[0], xors[1], 0x2107);
 				asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(bexor), "r"(RB), "r"(BUCKBITS));
-				xorslot = atomicAdd(&eq->edata.nslots[3][xorbucketid], 1);
+				int xorslot = atomicAdd(&eq->edata.nslots[3][xorbucketid], 1);
 
 				if (xorslot < NSLOTS)
 				{
@@ -79,41 +73,14 @@ __global__ void kernel(Equi<RB, SM>* eq)
 					SlotTiny &xst = eq->round3trees[xorbucketid].treestiny[xorslot];
 					uint2 ttx;
 					ttx.x = bexor;
-					ttx.y = PACKER::set_bucketid_and_slots(bucketid, si[i], p, RB, SM);
+					ttx.y = PACKER::set_bucketid_and_slots(bucketid, ii, kk, RB, SM);
 					*(uint2*)(&xst.hash[0]) = ttx;
 				}
 			}
 
-			for (int k = 1; k != pos[i]; ++k)
-			{
-				uint16_t prev = ht[hr[i]][k];
-
-				int pair = __byte_perm(si[i], prev, 0x1054);
-				uint32_t i = __byte_perm(pair, 0, 0x4510);
-				uint32_t k = __byte_perm(pair, 0, 0x4532);
-
-				xors[4] = lastword1[i] ^ lastword1[k];
-
-				if (xors[4] != 0)
-				{
-					*(uint4*)(&xors[0]) = lastword2[i] ^ lastword2[k];
-
-					bexor = __byte_perm(xors[0], xors[1], 0x2107);
-					asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(bexor), "r"(RB), "r"(BUCKBITS));
-					xorslot = atomicAdd(&eq->edata.nslots[3][xorbucketid], 1);
-
-					if (xorslot < NSLOTS)
-					{
-						SlotSmall &xs = eq->round3trees[xorbucketid].treessmall[xorslot];
-						*(uint4*)(&xs.hash[0]) = *(uint4*)(&xors[1]);
-						SlotTiny &xst = eq->round3trees[xorbucketid].treestiny[xorslot];
-						uint2 ttx;
-						ttx.x = bexor;
-						ttx.y = PACKER::set_bucketid_and_slots(bucketid, i, k, RB, SM);
-						*(uint2*)(&xst.hash[0]) = ttx;
-					}
-				}
-			}
+			k++;
+			
+			if (k == pos) break;
 		}
 	}
 }

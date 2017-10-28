@@ -30,11 +30,8 @@ __global__ void kernel(Equi<RB, SM>* eq)
 	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
 		htp[i] = USHRT_MAX;
 
-	// enable this to make fully safe shared mem operations;
-	// disabled gains some speed, but can rarely cause a crash
 	__syncthreads();
 
-	#pragma unroll
 	for (uint32_t si = threadid, bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS); si < bsize; si += THREADS)
 	{
 		const Slot* pslot1 = &eq->round0trees[bucketid][si];
