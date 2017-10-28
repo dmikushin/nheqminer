@@ -30,31 +30,23 @@ __global__ void kernel(Equi<RB, SM>* eq)
 	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
 		htp[i] = USHRT_MAX;
 
-	uint2 ta[2];
-	uint4 tb[2];
-
 	// enable this to make fully safe shared mem operations;
 	// disabled gains some speed, but can rarely cause a crash
 	__syncthreads();
 
-	uint32_t bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS);
-
 	#pragma unroll
-	for (uint32_t i = 0; i != 2; ++i)
+	for (uint32_t si = threadid, bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS); si < bsize; si += THREADS)
 	{
-		uint32_t si = i * THREADS + threadid;
-		if (si >= bsize) break;
-
 		const Slot* pslot1 = &eq->round0trees[bucketid][si];
 
 		// get xhash
-		tb[i] = *(uint4*)(&pslot1->hash[0]);
-		ta[i] = *(uint2*)(&pslot1->hash[4]);
-		lastword1[si] = ta[i];
-		lastword2[si] = tb[i];
+		uint4 tb = *(uint4*)(&pslot1->hash[0]);
+		uint2 ta = *(uint2*)(&pslot1->hash[4]);
+		lastword1[si] = ta;
+		lastword2[si] = tb;
 
 		uint32_t hr;
-		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr) : "r"(ta[i].x));
+		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr) : "r"(ta.x));
 		int shift = (hr % 4) * 8;
 		int pos = (atomicAdd(&ht_len[hr / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
 		if (pos < (SSM - 1)) ht[hr][pos] = si;
@@ -64,13 +56,13 @@ __global__ void kernel(Equi<RB, SM>* eq)
 
 	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
 	{
-		int hr = i / (SSM - 1);
-		int pos = i - hr * (SSM - 1); // i % (SSM - 1);
+		int pos = i / 256;
+		int hr = i - pos * 256; // i % 256;
 
 		int si = ht[hr][pos];
 		if (si == USHRT_MAX) continue;
 
-		for (int k = 0, ke = pos, pair = 0, ii = si, kk = ht[hr][0]; k < ke;
+		for (int k = 0, pair = 0, ii = si, kk = ht[hr][0]; k < pos;
 			pair = __byte_perm(si, ht[hr][k], 0x1054),
 			ii = __byte_perm(pair, 0, 0x4510),
 			kk = __byte_perm(pair, 0, 0x4532))
@@ -98,7 +90,7 @@ __global__ void kernel(Equi<RB, SM>* eq)
 			
 			k++;
 			
-			if (k == ke) break;
+			if (k == pos) break;
 		}
 	}
 }
