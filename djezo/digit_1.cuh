@@ -25,10 +25,10 @@ __global__ void kernel(Equi<RB, SM>* eq)
 	// reset hashtable len
 	if (threadid < 256 / 4)
 		ht_len[threadid] = 0;
-
-	uint32_t hr[2];
-	uint8_t pos[2];
-	pos[0] = pos[1] = SSM;
+	
+	uint16_t* htp = (uint16_t*)ht;
+	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
+		htp[i] = USHRT_MAX;
 
 	uint2 ta[2];
 	uint4 tb[2];
@@ -53,22 +53,25 @@ __global__ void kernel(Equi<RB, SM>* eq)
 		lastword1[si] = ta[i];
 		lastword2[si] = tb[i];
 
-		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr[i]) : "r"(ta[i].x));
-		int shift = (hr[i] % 4) * 8;
-		pos[i] = (atomicAdd(&ht_len[hr[i] / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
-		if (pos[i] < (SSM - 1)) ht[hr[i]][pos[i]] = si;
+		uint32_t hr;
+		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr) : "r"(ta[i].x));
+		int shift = (hr % 4) * 8;
+		int pos = (atomicAdd(&ht_len[hr / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
+		if (pos < (SSM - 1)) ht[hr][pos] = si;
 	}
 
 	__syncthreads();
 
-	#pragma unroll
-	for (uint32_t i = 0; i != 2; ++i)
+	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
 	{
-		if (pos[i] >= SSM) continue;
+		int hr = i / (SSM - 1);
+		int pos = i - hr * (SSM - 1); // i % (SSM - 1);
 
-		for (int si = i * THREADS + threadid, k = 0, ke = pos[i], prev = ht[hr[i]][k], pair = 0, ii = si, kk = prev; k < ke;
-			prev = ht[hr[i]][k],
-			pair = __byte_perm(si, prev, 0x1054),
+		int si = ht[hr][pos];
+		if (si == USHRT_MAX) continue;
+
+		for (int k = 0, ke = pos, pair = 0, ii = si, kk = ht[hr][0]; k < ke;
+			pair = __byte_perm(si, ht[hr][k], 0x1054),
 			ii = __byte_perm(pair, 0, 0x4510),
 			kk = __byte_perm(pair, 0, 0x4532))
 		{

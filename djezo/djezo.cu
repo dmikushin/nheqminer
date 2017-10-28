@@ -63,6 +63,7 @@ SOFTWARE.
 #include "blake2/blake2.h"
 #include "djezo.hpp"
 
+#include <climits>
 #include <memory>
 #include <vector>
 
