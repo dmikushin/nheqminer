@@ -15,58 +15,57 @@ template <uint32_t RB, uint32_t SM, int SSM, uint32_t THREADS>
 __global__ void kernel(Equi<RB, SM>* eq)
 {
 	__shared__ uint16_t ht[256][SSM - 1];
-	__shared__ uint ht_len[256 / 4]; // atomic adds on 1-byte lengths
+	__shared__ uint ht_len[256];
 	__shared__ uint2 lastword1[RB8_NSLOTS];
 	__shared__ uint4 lastword2[RB8_NSLOTS];
 
-	const uint32_t threadid = threadIdx.x;
-	const uint32_t bucketid = blockIdx.x;
+	const int& threadid = threadIdx.x;
+	const int& bucketid = blockIdx.x;
 
 	// reset hashtable len
-	if (threadid < 256 / 4)
+	if (threadid < 256)
 		ht_len[threadid] = 0;
 	
-	uint16_t* htp = (uint16_t*)ht;
-	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
-		htp[i] = USHRT_MAX;
-
 	__syncthreads();
 
+	// Cache lastword1 and bit extraction.
+	const Slot* s = eq->round0trees[bucketid];
+	#pragma unroll 1
 	for (uint32_t si = threadid, bsize = umin(eq->edata.nslots0[bucketid], RB8_NSLOTS); si < bsize; si += THREADS)
 	{
-		const Slot* pslot1 = &eq->round0trees[bucketid][si];
-
-		// get xhash
-		uint4 tb = *(uint4*)(&pslot1->hash[0]);
-		uint2 ta = *(uint2*)(&pslot1->hash[4]);
+		uint2 ta = *(uint2*)(&s[si].hash[4]);
 		lastword1[si] = ta;
-		lastword2[si] = tb;
 
-		uint32_t hr;
-		asm("bfe.u32 %0, %1, 20, 8;" : "=r"(hr) : "r"(ta.x));
-		int shift = (hr % 4) * 8;
-		int pos = (atomicAdd(&ht_len[hr / 4], 1U << shift) >> shift) & 0xff; // atomic adds on 1-byte lengths
-		if (pos < (SSM - 1)) ht[hr][pos] = si;
+		uint8_t hr = ta.x >> 20;
+		int pos = atomicAdd(&ht_len[hr], 1U);
+		if (pos < (SSM - 1))
+		{
+			ht[hr][pos] = si;
+			lastword2[si] = *(uint4*)(&s[si].hash[0]);
+		}
 	}
 
 	__syncthreads();
-
+	
+	#pragma unroll 1
 	for (int i = threadid, e = 256 * (SSM - 1); i < e; i += THREADS)
-	{
-		int pos = i / 256;
-		int hr = i - pos * 256; // i % 256;
+	{	
+		int pos = i >> 8; // i / 256;
+		int hr = i & 0xff; // i % 256;
+		int len = min(ht_len[hr], SSM - 1);
 
-		int si = ht[hr][pos];
-		if (si == USHRT_MAX) continue;
+		if (len < 2) continue;
+		
+		if (pos >= len) continue;
 
-		for (int k = 0, pair = 0, ii = si, kk = ht[hr][0]; k < pos;
-			pair = __byte_perm(si, ht[hr][k], 0x1054),
-			ii = __byte_perm(pair, 0, 0x4510),
-			kk = __byte_perm(pair, 0, 0x4532))
+		#pragma unroll 1
+		for (int si = ht[hr][pos], k = 0; k < pos; k++)
 		{
+			int ii = ht[hr][k];
+			
 			uint32_t xors[6];
 
-			*(uint2*)(&xors[0]) = lastword1[ii] ^ lastword1[kk];
+			xors[0] = lastword1[ii].x ^ lastword1[si].x;
 
 			uint32_t xorbucketid;
 			asm("bfe.u32 %0, %1, %2, %3;" : "=r"(xorbucketid) : "r"(xors[0]), "r"(RB), "r"(BUCKBITS));
@@ -74,20 +73,17 @@ __global__ void kernel(Equi<RB, SM>* eq)
 
 			if (xorslot < NSLOTS)
 			{
-				*(uint4*)(&xors[2]) = lastword2[ii] ^ lastword2[kk];
+				xors[1] = lastword1[ii].y ^ lastword1[si].y;
+				*(uint4*)(&xors[2]) = lastword2[ii] ^ lastword2[si];
 
 				Slot &xs = eq->trees[0][xorbucketid][xorslot];
 				*(uint4*)(&xs.hash[0]) = *(uint4*)(&xors[1]);
 				uint3 ttx;
 				ttx.x = xors[5];
 				ttx.y = xors[0];
-				ttx.z = DefaultPacker::set_bucketid_and_slots(bucketid, ii, kk, 8, RB8_NSLOTS);
+				ttx.z = DefaultPacker::set_bucketid_and_slots(bucketid, ii, si, 8, RB8_NSLOTS);
 				*(uint3*)(&xs.hash[4]) = ttx;
 			}
-			
-			k++;
-			
-			if (k == pos) break;
 		}
 	}
 }

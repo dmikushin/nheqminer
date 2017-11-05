@@ -107,7 +107,6 @@ struct __align__(32) Slot
 	uint32_t hash[8];
 };
 
-
 struct __align__(16) SlotSmall
 {
 	uint32_t hash[4];
