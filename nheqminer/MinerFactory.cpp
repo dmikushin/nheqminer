@@ -13,14 +13,11 @@ std::vector<ISolver *> MinerFactory::GenerateSolvers(int cpu_threads, int cuda_c
 	std::vector<ISolver *> solversPointers;
 
 #ifdef USE_CUDA_DJEZO
-	for (int i = 0; i < cuda_count; ++i) {
-		solversPointers.push_back(djezoSolver(cuda_en[i], opencl_platf));
-	}
+	for (int i = 0; i < cuda_count; ++i)
+		solversPointers.push_back(djezoSolver(cuda_en[i], i));
 #endif
 	for (int i = 0; i < cpu_threads; ++i)
-	{
 		solversPointers.push_back(GenCPUSolver(use_avx2));
-	}
 
 	return solversPointers;
 }

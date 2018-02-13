@@ -344,6 +344,7 @@ public:
 		std::function<void(const std::vector<uint32_t>&, size_t, const unsigned char*)> solutionf,
 		std::function<void(void)> hashdonef)
 	{
+		CUDA_ERR_CHECK(cudaSetDevice(deviceID));
 		CUDA_ERR_CHECK(cudaMemset(&equi->edata, 0, sizeof(equi->edata)));
 
 		DigitFirst<RB, SM>(equi, tequihash_header, tequihash_header_len, nonce, nonce_len);
@@ -412,17 +413,18 @@ public:
 
 extern "C" ISolver* djezoSolver(int platformID, int deviceID)
 {
-	static std::unique_ptr<djezo::DjEzo<9, 1280, 12, 640, djezo::CantorPacker> > solver;
-	if (solver.get())
+	static std::vector<std::unique_ptr<djezo::DjEzo<9, 1280, 12, 640, djezo::CantorPacker> > > solvers;
+	if (!solvers.size())
 	{
-		if ((solver->platformID != platformID) || (solver->deviceID != deviceID))
-			solver.reset(NULL);
+		int count = 0;
+		CUDA_ERR_CHECK(cudaGetDeviceCount(&count));
+		solvers.resize(count);
 	}
-	if (!solver.get())
+	if (!solvers[deviceID].get())
 	{
-		solver.reset(new djezo::DjEzo<9, 1280, 12, 640, djezo::CantorPacker>(platformID, deviceID));
+		solvers[deviceID].reset(new djezo::DjEzo<9, 1280, 12, 640, djezo::CantorPacker>(platformID, deviceID));
 	}
 	
-	return dynamic_cast<ISolver*>(solver.get());
+	return dynamic_cast<ISolver*>(solvers[deviceID].get());
 }
 
